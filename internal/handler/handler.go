@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
@@ -28,8 +29,9 @@ func (u *URLHandler) PostURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	w.Write(id)
+	shortURL := fmt.Sprintf("http://%s/%s", r.Host, id)
 	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(shortURL))
 }
 
 func (u *URLHandler) GetURL(w http.ResponseWriter, r *http.Request) {
