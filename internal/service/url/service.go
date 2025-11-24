@@ -3,15 +3,18 @@ package url
 import (
 	"crypto/sha256"
 	"encoding/base64"
-
-	"github.com/anon-d/urlshortener/internal/model"
 )
 
-type URLService struct {
-	store *model.Store
+type URLStore interface {
+	AddURL(id string, longURL string) (string, error)
+	GetURL(shortURL string) (string, error)
 }
 
-func NewURLService(store *model.Store) *URLService {
+type URLService struct {
+	store URLStore
+}
+
+func NewURLService(store URLStore) *URLService {
 	return &URLService{
 		store: store,
 	}
