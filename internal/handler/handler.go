@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	myError "github.com/anon-d/urlshortener/internal/error"
 	"github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/gin-gonic/gin"
 )
 
 type URLHandler struct {
@@ -18,29 +21,39 @@ func NewURLHandler(urlService *url.URLService) *URLHandler {
 	}
 }
 
-func (u *URLHandler) PostURL(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+func (u *URLHandler) PostURL(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(body) == 0 {
+		c.String(http.StatusBadRequest, "empty request body")
 		return
 	}
 	id, err := u.URLService.ShortenURL(body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	shortURL := fmt.Sprintf("http://%s/%s", r.Host, id)
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortURL))
+	shortURL := fmt.Sprintf("http://%s/%s", c.Request.Host, id)
+	c.String(http.StatusCreated, shortURL)
 }
 
-func (u *URLHandler) GetURL(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	urlLong, err := u.URLService.GetURL(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+func (u *URLHandler) GetURL(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.String(http.StatusBadRequest, "missing id parameter")
 		return
 	}
-	w.Header().Set("Location", urlLong)
-	w.WriteHeader(http.StatusTemporaryRedirect)
+	urlLong, err := u.URLService.GetURL(id)
+	if err != nil {
+		if errors.Is(err, myError.ErrNotFound) {
+			c.String(http.StatusNotFound, err.Error())
+			return
+		}
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+	c.Redirect(http.StatusTemporaryRedirect, urlLong)
 }

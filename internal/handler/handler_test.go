@@ -2,13 +2,14 @@ package handler
 
 import (
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	err "github.com/anon-d/urlshortener/internal/error"
 	"github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/gin-gonic/gin"
 )
 
 type mockStore struct {
@@ -39,22 +40,22 @@ func TestPostURL_Success(t *testing.T) {
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService)
 
-	body := strings.NewReader("https://example.com")
-	req := httptest.NewRequest(http.MethodPost, "/", body)
+	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
 
-	handler.PostURL(w, req)
+	body := strings.NewReader("https://example.com")
+	c.Request = httptest.NewRequest(http.MethodPost, "/", body)
 
-	resp := w.Result()
-	defer resp.Body.Close()
+	handler.PostURL(c)
 
-	if resp.StatusCode != http.StatusCreated {
-		t.Errorf("expected status %d, got %d", http.StatusCreated, resp.StatusCode)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
 	}
 
-	respBody, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(respBody), "abc123") {
-		t.Errorf("expected response to contain 'abc123', got %s", string(respBody))
+	respBody := w.Body.String()
+	if !strings.Contains(respBody, "abc123") {
+		t.Errorf("expected response to contain 'abc123', got %s", respBody)
 	}
 }
 
@@ -63,16 +64,15 @@ func TestPostURL_EmptyBody(t *testing.T) {
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService)
 
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
 
-	handler.PostURL(w, req)
+	handler.PostURL(c)
 
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, resp.StatusCode)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
 
@@ -85,17 +85,17 @@ func TestPostURL_ServiceError(t *testing.T) {
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService)
 
-	body := strings.NewReader("https://example.com")
-	req := httptest.NewRequest(http.MethodPost, "/", body)
+	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
 
-	handler.PostURL(w, req)
+	body := strings.NewReader("https://example.com")
+	c.Request = httptest.NewRequest(http.MethodPost, "/", body)
 
-	resp := w.Result()
-	defer resp.Body.Close()
+	handler.PostURL(c)
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, resp.StatusCode)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
 
@@ -111,20 +111,19 @@ func TestGetURL_Success(t *testing.T) {
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService)
 
-	req := httptest.NewRequest(http.MethodGet, "/abc123", nil)
-	req.SetPathValue("id", "abc123")
+	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/abc123", nil)
+	c.Params = gin.Params{{Key: "id", Value: "abc123"}}
 
-	handler.GetURL(w, req)
+	handler.GetURL(c)
 
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusTemporaryRedirect {
-		t.Errorf("expected status %d, got %d", http.StatusTemporaryRedirect, resp.StatusCode)
+	if w.Code != http.StatusTemporaryRedirect {
+		t.Errorf("expected status %d, got %d", http.StatusTemporaryRedirect, w.Code)
 	}
 
-	location := resp.Header.Get("Location")
+	location := w.Header().Get("Location")
 	if location != "https://example.com" {
 		t.Errorf("expected Location header 'https://example.com', got %s", location)
 	}
@@ -133,23 +132,22 @@ func TestGetURL_Success(t *testing.T) {
 func TestGetURL_NotFound(t *testing.T) {
 	store := &mockStore{
 		getURLFunc: func(shortURL string) (string, error) {
-			return "", errors.New("not found")
+			return "", err.ErrNotFound
 		},
 	}
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService)
 
-	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
-	req.SetPathValue("id", "nonexistent")
+	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
+	c.Params = gin.Params{{Key: "id", Value: "nonexistent"}}
 
-	handler.GetURL(w, req)
+	handler.GetURL(c)
 
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, resp.StatusCode)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
 	}
 }
 
@@ -165,16 +163,15 @@ func TestGetURL_EmptyID(t *testing.T) {
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.SetPathValue("id", "")
+	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = gin.Params{{Key: "id", Value: ""}}
 
-	handler.GetURL(w, req)
+	handler.GetURL(c)
 
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, resp.StatusCode)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
