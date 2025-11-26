@@ -19,7 +19,7 @@ func main() {
 
 	store := model.NewStore()
 	urlService := url.NewURLService(store)
-	urlHandler := handler.NewURLHandler(urlService, cfg.AddrUrl)
+	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL)
 
 	router := gin.Default()
 
