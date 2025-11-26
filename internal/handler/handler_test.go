@@ -38,7 +38,7 @@ func TestPostURL_Success(t *testing.T) {
 		},
 	}
 	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -62,7 +62,7 @@ func TestPostURL_Success(t *testing.T) {
 func TestPostURL_EmptyBody(t *testing.T) {
 	store := &mockStore{}
 	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -83,7 +83,7 @@ func TestPostURL_ServiceError(t *testing.T) {
 		},
 	}
 	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -109,7 +109,7 @@ func TestGetURL_Success(t *testing.T) {
 		},
 	}
 	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -136,7 +136,7 @@ func TestGetURL_NotFound(t *testing.T) {
 		},
 	}
 	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -161,7 +161,7 @@ func TestGetURL_EmptyID(t *testing.T) {
 		},
 	}
 	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

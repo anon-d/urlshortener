@@ -13,11 +13,13 @@ import (
 
 type URLHandler struct {
 	URLService *url.URLService
+	URLAddr    string
 }
 
-func NewURLHandler(urlService *url.URLService) *URLHandler {
+func NewURLHandler(urlService *url.URLService, urlAddr string) *URLHandler {
 	return &URLHandler{
 		URLService: urlService,
+		URLAddr:    urlAddr,
 	}
 }
 
@@ -36,7 +38,7 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	shortURL := fmt.Sprintf("http://%s/%s", c.Request.Host, id)
+	shortURL := fmt.Sprintf("%s/%s", u.URLAddr, id)
 	c.String(http.StatusCreated, shortURL)
 }
 
