@@ -13,9 +13,9 @@ import (
 
 func main() {
 	addrServer := flag.String("a", ":8080", "address to listen on")
-	addrUrl := flag.String("b", "http://localhost:8080", "base URL for short URLs")
+	addrURL := flag.String("b", "http://localhost:8080", "base URL for short URLs")
 	flag.Parse()
-	cfg := config.NewServerConfig(*addrServer, *addrUrl)
+	cfg := config.NewServerConfig(*addrServer, *addrURL)
 
 	store := model.NewStore()
 	urlService := url.NewURLService(store)
