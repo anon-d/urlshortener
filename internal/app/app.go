@@ -41,12 +41,11 @@ func New() (*App, error) {
 
 	// CORS middleware
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:  []string{},
-		AllowMethods:  []string{"GET", "POST"},
-		AllowHeaders:  []string{"Origin", "Content-Type"},
-		ExposeHeaders: []string{"Content-Length"},
-		// AllowCredentials: true,
-		// MaxAge:           12 * time.Hour,
+		AllowAllOrigins:  true,
+		AllowMethods:     []string{"GET", "POST"},
+		AllowHeaders:     []string{"Origin", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: false,
 	}))
 
 	// Security headers
