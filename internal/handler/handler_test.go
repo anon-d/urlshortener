@@ -7,36 +7,19 @@ import (
 	"strings"
 	"testing"
 
-	err "github.com/anon-d/urlshortener/internal/error"
 	"github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/anon-d/urlshortener/internal/service/url/mocks"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/mock/gomock"
 )
 
-type mockStore struct {
-	addURLFunc func(id string, longURL string) (string, error)
-	getURLFunc func(shortURL string) (string, error)
-}
-
-func (m *mockStore) AddURL(id string, longURL string) (string, error) {
-	if m.addURLFunc != nil {
-		return m.addURLFunc(id, longURL)
-	}
-	return "", errors.New("not implemented")
-}
-
-func (m *mockStore) GetURL(shortURL string) (string, error) {
-	if m.getURLFunc != nil {
-		return m.getURLFunc(shortURL)
-	}
-	return "", errors.New("not implemented")
-}
-
 func TestPostURL_Success(t *testing.T) {
-	store := &mockStore{
-		addURLFunc: func(id string, longURL string) (string, error) {
-			return "abc123", nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return("abc123", nil)
+
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
 
@@ -60,7 +43,10 @@ func TestPostURL_Success(t *testing.T) {
 }
 
 func TestPostURL_EmptyBody(t *testing.T) {
-	store := &mockStore{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
 
@@ -77,11 +63,12 @@ func TestPostURL_EmptyBody(t *testing.T) {
 }
 
 func TestPostURL_ServiceError(t *testing.T) {
-	store := &mockStore{
-		addURLFunc: func(id string, longURL string) (string, error) {
-			return "", errors.New("storage error")
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return("", errors.New("storage error"))
+
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
 
@@ -94,20 +81,18 @@ func TestPostURL_ServiceError(t *testing.T) {
 
 	handler.PostURL(c)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 	}
 }
 
 func TestGetURL_Success(t *testing.T) {
-	store := &mockStore{
-		getURLFunc: func(shortURL string) (string, error) {
-			if shortURL == "abc123" {
-				return "https://example.com", nil
-			}
-			return "", errors.New("not found")
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	store.EXPECT().GetURL("abc123").Return("https://example.com", nil)
+
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
 
@@ -130,11 +115,12 @@ func TestGetURL_Success(t *testing.T) {
 }
 
 func TestGetURL_NotFound(t *testing.T) {
-	store := &mockStore{
-		getURLFunc: func(shortURL string) (string, error) {
-			return "", err.ErrNotFound
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	store.EXPECT().GetURL("nonexistent").Return("", errors.New("some error"))
+
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
 
@@ -146,20 +132,17 @@ func TestGetURL_NotFound(t *testing.T) {
 
 	handler.GetURL(c)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
 
 func TestGetURL_EmptyID(t *testing.T) {
-	store := &mockStore{
-		getURLFunc: func(shortURL string) (string, error) {
-			if shortURL == "" {
-				return "", errors.New("empty id")
-			}
-			return "", errors.New("not found")
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	// тут мока нет, т.к. проверяю прям в хендлере
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
 

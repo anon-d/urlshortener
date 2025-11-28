@@ -1,32 +1,46 @@
 package main
 
 import (
-	"flag"
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gin-gonic/gin"
-
-	config "github.com/anon-d/urlshortener/internal/config/flag"
-	"github.com/anon-d/urlshortener/internal/handler"
-	"github.com/anon-d/urlshortener/internal/model"
-	"github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/anon-d/urlshortener/internal/app"
 )
 
 func main() {
-	addrServer := flag.String("a", ":8080", "address to listen on")
-	addrURL := flag.String("b", "http://localhost:8080", "base URL for short URLs")
-	flag.Parse()
-	cfg := config.NewServerConfig(*addrServer, *addrURL)
+	application, err := app.New()
+	if err != nil {
+		log.Fatalf("Error initializing application.\n%s", err.Error())
+	}
+	application.SetupRoutes()
 
-	store := model.NewStore()
-	urlService := url.NewURLService(store)
-	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL)
+	go func() {
+		if err := application.Run(); err != nil {
+			log.Fatalf("Error running application.\n%s", err.Error())
+		}
+	}()
 
-	router := gin.Default()
+	out := make(chan os.Signal, 1)
+	signal.Notify(out, syscall.SIGINT, syscall.SIGTERM)
+	<-out
+	log.Print("Shutdown process is started...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	router.POST("/", urlHandler.PostURL)
-	router.GET("/:id", urlHandler.GetURL)
-
-	if err := router.Run(cfg.AddrServer); err != nil {
-		panic(err)
+	shut := make(chan struct{})
+	go func() {
+		application.Shutdown(ctx)
+		close(shut)
+	}()
+	select {
+	case <-shut:
+		log.Print("Shutdown process is completed!")
+	case <-ctx.Done():
+		log.Print("Shutdown process is failed! Force shutdown")
+		os.Exit(1)
 	}
 }

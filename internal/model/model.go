@@ -1,7 +1,7 @@
 package model
 
 import (
-	err "github.com/anon-d/urlshortener/internal/error"
+	"errors"
 )
 
 type Store struct {
@@ -16,7 +16,7 @@ func NewStore() *Store {
 
 func (s *Store) AddURL(id, url string) (string, error) {
 	if _, ok := s.urls[id]; ok {
-		return "", err.ErrDuplicateID
+		return "", errors.New("duplicate ID")
 	}
 	s.urls[id] = url
 	return id, nil
@@ -25,7 +25,7 @@ func (s *Store) AddURL(id, url string) (string, error) {
 func (s *Store) GetURL(id string) (string, error) {
 	url, ok := s.urls[id]
 	if !ok {
-		return "", err.ErrNotFound
+		return "", errors.New("not found")
 	}
 	return url, nil
 }
