@@ -11,6 +11,8 @@ import (
 
 	config "github.com/anon-d/urlshortener/internal/config/flag"
 	"github.com/anon-d/urlshortener/internal/handler"
+	"github.com/anon-d/urlshortener/internal/logger"
+	"github.com/anon-d/urlshortener/internal/middleware"
 	"github.com/anon-d/urlshortener/internal/model"
 	service "github.com/anon-d/urlshortener/internal/service/url"
 )
@@ -37,6 +39,11 @@ func New() (*App, error) {
 	}
 
 	cfg := config.NewServerConfig(envAddrServer, envAddrURL, *env)
+
+	logger, err := logger.New()
+	if err != nil {
+		return &App{}, err
+	}
 
 	store := model.NewStore()
 	urlService := service.NewURLService(store)
@@ -67,6 +74,10 @@ func New() (*App, error) {
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		c.Next()
 	})
+
+	// middleware
+	router.Use(middleware.RequestMiddleware(logger))
+	router.Use(middleware.ResponseMiddleware(logger))
 
 	router.HandleMethodNotAllowed = true
 
