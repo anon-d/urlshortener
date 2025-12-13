@@ -2,9 +2,7 @@ package app
 
 import (
 	"context"
-	"flag"
 	"net/http"
-	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -24,21 +22,8 @@ type App struct {
 }
 
 func New() (*App, error) {
-	addrServer := flag.String("a", ":8080", "address to listen on")
-	addrURL := flag.String("b", "http://localhost:8080", "base URL for short URLs")
-	env := flag.String("e", "dev", "environment")
-	flag.Parse()
 
-	envAddrServer, ok := os.LookupEnv("SERVER_ADDRESS")
-	if !ok {
-		envAddrServer = *addrServer
-	}
-	envAddrURL, ok := os.LookupEnv("BASE_URL")
-	if !ok {
-		envAddrURL = *addrURL
-	}
-
-	cfg := config.NewServerConfig(envAddrServer, envAddrURL, *env)
+	cfg := config.NewServerConfig()
 
 	logger, err := logger.New()
 	if err != nil {

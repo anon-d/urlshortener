@@ -3,6 +3,7 @@ module github.com/anon-d/urlshortener
 go 1.24.0
 
 require (
+	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	go.uber.org/mock v0.6.0
