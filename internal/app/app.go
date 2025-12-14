@@ -86,6 +86,7 @@ func (a *App) SetupRoutes() {
 
 	a.router.POST("/", a.urlHandler.PostURL)
 	a.router.GET("/:id", a.urlHandler.GetURL)
+	a.router.POST("/api/shorten", a.urlHandler.Shorten)
 	a.router.NoMethod(a.urlHandler.NotAllowed)
 	a.router.NoRoute(a.urlHandler.NotFound)
 

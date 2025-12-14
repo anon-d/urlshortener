@@ -21,3 +21,6 @@ vendor/
 # IDEs directories
 .idea
 .vscode
+
+# includes instructions for viewing code coverage by tests
+Makefile

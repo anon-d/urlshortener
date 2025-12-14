@@ -158,3 +158,115 @@ func TestGetURL_EmptyID(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
+
+func TestShorten_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return("abc123", nil)
+
+	urlService := url.NewURLService(store)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	jsonBody := `{"url":"https://example.com"}`
+	body := strings.NewReader(jsonBody)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Shorten(c)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "application/json" {
+		t.Errorf("expected Content-Type 'application/json', got %s", contentType)
+	}
+
+	respBody := w.Body.String()
+	if !strings.Contains(respBody, "abc123") {
+		t.Errorf("expected response to contain 'abc123', got %s", respBody)
+	}
+	if !strings.Contains(respBody, "result") {
+		t.Errorf("expected response to contain 'result' field, got %s", respBody)
+	}
+}
+
+func TestShorten_InvalidJSON(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	urlService := url.NewURLService(store)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body := strings.NewReader(`{"url":}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Shorten(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestShorten_MissingURL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	urlService := url.NewURLService(store)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	jsonBody := `{}`
+	body := strings.NewReader(jsonBody)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Shorten(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestShorten_ServiceError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return("", errors.New("storage error"))
+
+	urlService := url.NewURLService(store)
+	handler := NewURLHandler(urlService, "http://localhost:8080")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	jsonBody := `{"url":"https://example.com"}`
+	body := strings.NewReader(jsonBody)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Shorten(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}

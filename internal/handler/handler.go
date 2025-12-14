@@ -10,6 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type ApiRequest struct {
+	URL string `json:"url" binding:"required"`
+}
+type ApiResponse struct {
+	Result string `json:"result"`
+}
+
 type URLHandler struct {
 	URLService *serviceURL.URLService
 	URLAddr    string
@@ -82,4 +89,26 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusTemporaryRedirect, urlLong)
+}
+
+func (u *URLHandler) Shorten(c *gin.Context) {
+	var request ApiRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.String(http.StatusBadRequest, http.StatusText(400))
+		return
+	}
+	targetURL := request.URL
+	id, err := u.URLService.ShortenURL([]byte(targetURL))
+	if err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(500))
+		return
+	}
+	shortURL, err := url.JoinPath(u.URLAddr, string(id))
+	if err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(500))
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.JSON(http.StatusCreated, ApiResponse{Result: shortURL})
 }
