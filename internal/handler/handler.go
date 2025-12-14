@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -10,10 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ApiRequest struct {
+type APIRequest struct {
 	URL string `json:"url" binding:"required"`
 }
-type ApiResponse struct {
+type APIResponse struct {
 	Result string `json:"result"`
 }
 
@@ -92,7 +93,7 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 }
 
 func (u *URLHandler) Shorten(c *gin.Context) {
-	var request ApiRequest
+	var request APIRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.String(http.StatusBadRequest, http.StatusText(400))
 		return
@@ -110,5 +111,9 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
-	c.JSON(http.StatusCreated, ApiResponse{Result: shortURL})
+	c.Writer.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL}); err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(500))
+		return
+	}
 }
