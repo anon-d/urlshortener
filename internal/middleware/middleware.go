@@ -35,7 +35,7 @@ type gzipResponseWriter struct {
 }
 
 func (g *gzipResponseWriter) Flush() {
-	if g.shouldCompress {
+	if g.shouldCompress && g.Writer != nil {
 		g.Writer.Flush()
 	}
 }
@@ -54,10 +54,14 @@ func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 
 		if !g.shouldCompress {
 			g.ResponseWriter.Header().Del("Content-Encoding")
+			if g.Writer != nil {
+				g.Writer.Close()
+				g.Writer = nil
+			}
 		}
 	}
 
-	if g.shouldCompress {
+	if g.shouldCompress && g.Writer != nil {
 		return g.Writer.Write(b)
 	}
 	return g.ResponseWriter.Write(b)
@@ -73,7 +77,11 @@ func CompressionResponse() gin.HandlerFunc {
 
 		wo := c.Writer
 		wc := gzip.NewWriter(wo)
-		defer wc.Close()
+		defer func() {
+			if wc != nil {
+				wc.Close()
+			}
+		}()
 
 		c.Writer = &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
 
