@@ -30,11 +30,14 @@ func ResponseMiddleware(logger *logger.Logger) gin.HandlerFunc {
 type gzipResponseWriter struct {
 	*gzip.Writer
 	gin.ResponseWriter
-	writeStarted bool
+	writeStarted   bool
+	shouldCompress bool
 }
 
 func (g *gzipResponseWriter) Flush() {
-	g.Writer.Flush()
+	if g.shouldCompress {
+		g.Writer.Flush()
+	}
 }
 
 func (g *gzipResponseWriter) Header() http.Header {
@@ -46,15 +49,18 @@ func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 		g.writeStarted = true
 		contentType := g.ResponseWriter.Header().Get("Content-Type")
 
-		shouldCompress := strings.Contains(contentType, "application/json") ||
+		g.shouldCompress = strings.Contains(contentType, "application/json") ||
 			strings.Contains(contentType, "text/html")
 
-		if !shouldCompress {
+		if !g.shouldCompress {
 			g.ResponseWriter.Header().Del("Content-Encoding")
-			return g.ResponseWriter.Write(b)
 		}
 	}
-	return g.Writer.Write(b)
+
+	if g.shouldCompress {
+		return g.Writer.Write(b)
+	}
+	return g.ResponseWriter.Write(b)
 }
 
 func CompressionResponse() gin.HandlerFunc {
