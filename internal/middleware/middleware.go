@@ -54,10 +54,7 @@ func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 
 		if !g.shouldCompress {
 			g.ResponseWriter.Header().Del("Content-Encoding")
-			if g.Writer != nil {
-				g.Writer.Close()
-				g.Writer = nil
-			}
+			g.Writer = nil
 		}
 	}
 
@@ -77,13 +74,14 @@ func CompressionResponse() gin.HandlerFunc {
 
 		wo := c.Writer
 		wc := gzip.NewWriter(wo)
+		gzWriter := &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
 		defer func() {
-			if wc != nil {
-				wc.Close()
+			if gzWriter.Writer != nil {
+				gzWriter.Writer.Close()
 			}
 		}()
 
-		c.Writer = &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
+		c.Writer = gzWriter
 
 		c.Header("Content-Encoding", "gzip")
 
