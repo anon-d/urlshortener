@@ -66,10 +66,7 @@ func New() (*App, error) {
 	})
 
 	// middleware
-	router.Use(middleware.RequestMiddleware(logger))
-	router.Use(middleware.ResponseMiddleware(logger))
-	router.Use(middleware.CompressionResponse())
-	router.Use(middleware.DecompressionRequest())
+	router.Use(middleware.GlobalMiddleware(logger)...)
 
 	router.HandleMethodNotAllowed = true
 

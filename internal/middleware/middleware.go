@@ -11,6 +11,15 @@ import (
 	"go.uber.org/zap"
 )
 
+func GlobalMiddleware(logger *logger.Logger) []gin.HandlerFunc {
+	return []gin.HandlerFunc{
+		RequestMiddleware(logger),
+		ResponseMiddleware(logger),
+		CompressionResponse(),
+		DecompressionRequest(),
+	}
+}
+
 func RequestMiddleware(logger *logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
