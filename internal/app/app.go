@@ -3,9 +3,6 @@ package app
 import (
 	"context"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -17,8 +14,6 @@ import (
 	"github.com/anon-d/urlshortener/internal/model"
 	service "github.com/anon-d/urlshortener/internal/service/url"
 )
-
-const defaultFileName string = "data.json"
 
 type App struct {
 	server     *http.Server
@@ -35,19 +30,7 @@ func New() (*App, error) {
 		return &App{}, err
 	}
 
-	var filePath string
-	if strings.HasSuffix(cfg.File, ".json") {
-		filePath = cfg.File
-	} else {
-		fileInfo, err := os.Stat(cfg.File)
-		if err == nil && fileInfo.IsDir() {
-			filePath = filepath.Join(cfg.File, defaultFileName)
-		} else {
-			filePath = cfg.File
-		}
-	}
-
-	fileSrv := model.NewFileStore(filePath, logger)
+	fileSrv := model.NewFileStore(cfg.File, logger)
 	store, err := model.NewStore(fileSrv, logger)
 	if err != nil {
 		return &App{}, err

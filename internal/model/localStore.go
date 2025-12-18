@@ -22,13 +22,13 @@ func NewFileStore(path string, logger *logger.Logger) *FileStore {
 }
 
 func (fs *FileStore) Save(data []Data) error {
-	fs.logger.ZLog.Info("Marshaling data from cache to byte", zap.Any("cache data", data))
+	fs.logger.ZLog.Infow("Marshaling data from cache to byte-format", zap.Any("cache data", data))
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	fs.logger.ZLog.Info("Creating directory for file storage", zap.String("directory", filepath.Dir(fs.path)))
+	fs.logger.ZLog.Infow("Creating directory for file storage", zap.String("directory", filepath.Dir(fs.path)))
 	dir := filepath.Dir(fs.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -38,7 +38,7 @@ func (fs *FileStore) Save(data []Data) error {
 }
 
 func (fs *FileStore) Load() ([]Data, error) {
-	fs.logger.ZLog.Info("Loading data from file", zap.String("file path", fs.path))
+	fs.logger.ZLog.Infow("Loading data from file", zap.String("file path", fs.path))
 	bytes, err := os.ReadFile(fs.path)
 	if err != nil {
 		if os.IsNotExist(err) {
