@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -38,7 +39,12 @@ func New() (*App, error) {
 	if strings.HasSuffix(cfg.File, ".json") {
 		filePath = cfg.File
 	} else {
-		filePath = filepath.Join(cfg.File, defaultFileName)
+		fileInfo, err := os.Stat(cfg.File)
+		if err == nil && fileInfo.IsDir() {
+			filePath = filepath.Join(cfg.File, defaultFileName)
+		} else {
+			filePath = cfg.File
+		}
 	}
 
 	fileSrv := model.NewFileStore(filePath)
