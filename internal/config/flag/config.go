@@ -10,7 +10,7 @@ type ServerConfig struct {
 	AddrServer string `env:"SERVER_ADDRESS"`
 	AddrURL    string `env:"BASE_URL"`
 	Env        string `env:"ENV"`
-	File       string `env:"FILE"`
+	File       string `env:"FILE_STORAGE_PATH"`
 }
 
 var (
@@ -55,7 +55,7 @@ func NewServerConfig() *ServerConfig {
 		cfg.Env = *envValue
 	}
 
-	if envFile := os.Getenv("FILE"); envFile != "" {
+	if envFile := os.Getenv("FILE_STORAGE_PATH"); envFile != "" {
 		cfg.File = envFile
 	} else {
 		cfg.File = *fileValue

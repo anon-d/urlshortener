@@ -26,10 +26,10 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			name: "All environments setup",
 			envVars: map[string]string{
-				"SERVER_ADDRESS": ServerAddr,
-				"BASE_URL":       URL,
-				"ENV":            EnvVar,
-				"FILE":           File,
+				"SERVER_ADDRESS":    ServerAddr,
+				"BASE_URL":          URL,
+				"ENV":               EnvVar,
+				"FILE_STORAGE_PATH": File,
 			},
 			want: ServerConfig{
 				AddrServer: ServerAddr,
