@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 )
 
 type FileStore struct {
@@ -20,6 +21,13 @@ func (fs *FileStore) Save(data []Data) error {
 	if err != nil {
 		return err
 	}
+
+	// Создаем директорию, если её нет
+	dir := filepath.Dir(fs.path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
 	return os.WriteFile(fs.path, bytes, 0644)
 }
 
