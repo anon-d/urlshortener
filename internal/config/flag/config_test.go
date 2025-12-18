@@ -9,6 +9,7 @@ const (
 	ServerAddr = ":8081"
 	EnvVar     = "prod"
 	URL        = "http://default-host:8081"
+	File       = "data.json"
 )
 
 // TestNewServerConfig проводит табличные тесты для функции NewServerConfig.
@@ -28,11 +29,13 @@ func TestNewServerConfig(t *testing.T) {
 				"SERVER_ADDRESS": ServerAddr,
 				"BASE_URL":       URL,
 				"ENV":            EnvVar,
+				"FILE":           File,
 			},
 			want: ServerConfig{
 				AddrServer: ServerAddr,
 				AddrURL:    URL,
 				Env:        EnvVar,
+				File:       File,
 			},
 		},
 		{
@@ -45,6 +48,7 @@ func TestNewServerConfig(t *testing.T) {
 				AddrServer: ":8080",
 				AddrURL:    URL,
 				Env:        EnvVar,
+				File:       File,
 			},
 		},
 		{
@@ -54,6 +58,7 @@ func TestNewServerConfig(t *testing.T) {
 				AddrServer: ":8080",
 				AddrURL:    "http://localhost:8080",
 				Env:        "dev",
+				File:       "data.json",
 			},
 		},
 		// по сути... тоже самое что и 3 тест,
@@ -65,6 +70,7 @@ func TestNewServerConfig(t *testing.T) {
 				AddrServer: ":8080",
 				AddrURL:    "http://localhost:8080",
 				Env:        "dev",
+				File:       "data.json",
 			},
 		},
 	}
@@ -73,7 +79,7 @@ func TestNewServerConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			originalEnv := make(map[string]string)
-			envKeys := []string{"SERVER_ADDRESS", "BASE_URL", "ENV"}
+			envKeys := []string{"SERVER_ADDRESS", "BASE_URL", "ENV", "FILE"}
 			for _, key := range envKeys {
 				originalEnv[key] = os.Getenv(key)
 				os.Unsetenv(key)
@@ -103,6 +109,9 @@ func TestNewServerConfig(t *testing.T) {
 			}
 			if got.Env != tt.want.Env {
 				t.Errorf("Env = %v, want %v", got.Env, tt.want.Env)
+			}
+			if got.File != tt.want.File {
+				t.Errorf("File = %v, want %v", got.File, tt.want.File)
 			}
 		})
 	}

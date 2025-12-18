@@ -3,13 +3,14 @@ package url
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 )
 
 //go:generate mockgen -source=service.go -destination=mocks/mock_urlstore.go -package=mocks
 
 type URLStore interface {
-	AddURL(id string, longURL string) (string, error)
-	GetURL(shortURL string) (string, error)
+	AddURL(id string, longURL any) error
+	GetURL(shortURL string) (any, bool)
 }
 
 type URLService struct {
@@ -24,15 +25,19 @@ func NewURLService(store URLStore) *URLService {
 
 func (s *URLService) ShortenURL(longURL []byte) ([]byte, error) {
 	urlID := generateID()
-	id, err := s.store.AddURL(urlID, string(longURL))
+	err := s.store.AddURL(urlID, string(longURL))
 	if err != nil {
 		return nil, err
 	}
-	return []byte(id), nil
+	return []byte(urlID), nil
 }
 
 func (s *URLService) GetURL(shortURL string) (string, error) {
-	return s.store.GetURL(shortURL)
+	originURL, exists := s.store.GetURL(shortURL)
+	if !exists {
+		return "", errors.New("URL not found")
+	}
+	return originURL.(string), nil
 }
 
 func generateID() string {

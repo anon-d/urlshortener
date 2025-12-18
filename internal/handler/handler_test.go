@@ -18,7 +18,7 @@ func TestPostURL_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return("abc123", nil)
+	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return(nil)
 
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
@@ -37,8 +37,8 @@ func TestPostURL_Success(t *testing.T) {
 	}
 
 	respBody := w.Body.String()
-	if !strings.Contains(respBody, "abc123") {
-		t.Errorf("expected response to contain 'abc123', got %s", respBody)
+	if respBody == "" {
+		t.Errorf("expected response to contain short URL, got empty string")
 	}
 }
 
@@ -67,7 +67,7 @@ func TestPostURL_ServiceError(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return("", errors.New("storage error"))
+	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return(errors.New("storage error"))
 
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
@@ -91,7 +91,7 @@ func TestGetURL_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	store.EXPECT().GetURL("abc123").Return("https://example.com", nil)
+	store.EXPECT().GetURL("abc123").Return("https://example.com", true)
 
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
@@ -119,7 +119,7 @@ func TestGetURL_NotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	store.EXPECT().GetURL("nonexistent").Return("", errors.New("some error"))
+	store.EXPECT().GetURL("nonexistent").Return(nil, false)
 
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
@@ -164,7 +164,7 @@ func TestShorten_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return("abc123", nil)
+	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return(nil)
 
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")
@@ -190,9 +190,6 @@ func TestShorten_Success(t *testing.T) {
 	}
 
 	respBody := w.Body.String()
-	if !strings.Contains(respBody, "abc123") {
-		t.Errorf("expected response to contain 'abc123', got %s", respBody)
-	}
 	if !strings.Contains(respBody, "result") {
 		t.Errorf("expected response to contain 'result' field, got %s", respBody)
 	}
@@ -250,7 +247,7 @@ func TestShorten_ServiceError(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return("", errors.New("storage error"))
+	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return(errors.New("storage error"))
 
 	urlService := url.NewURLService(store)
 	handler := NewURLHandler(urlService, "http://localhost:8080")

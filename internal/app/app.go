@@ -30,7 +30,12 @@ func New() (*App, error) {
 		return &App{}, err
 	}
 
-	store := model.NewStore()
+	file := model.NewFileStore(cfg.File)
+	store, err := model.NewStore(file)
+	if err != nil {
+		return &App{}, err
+	}
+
 	urlService := service.NewURLService(store)
 	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL)
 

@@ -40,12 +40,11 @@ func (m *MockURLStore) EXPECT() *MockURLStoreMockRecorder {
 }
 
 // AddURL mocks base method.
-func (m *MockURLStore) AddURL(id, longURL string) (string, error) {
+func (m *MockURLStore) AddURL(id string, longURL any) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddURL", id, longURL)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AddURL indicates an expected call of AddURL.
@@ -55,11 +54,11 @@ func (mr *MockURLStoreMockRecorder) AddURL(id, longURL any) *gomock.Call {
 }
 
 // GetURL mocks base method.
-func (m *MockURLStore) GetURL(shortURL string) (string, error) {
+func (m *MockURLStore) GetURL(shortURL string) (any, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetURL", shortURL)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
