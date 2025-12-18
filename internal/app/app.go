@@ -47,14 +47,14 @@ func New() (*App, error) {
 		}
 	}
 
-	fileSrv := model.NewFileStore(filePath)
-	store, err := model.NewStore(fileSrv)
+	fileSrv := model.NewFileStore(filePath, logger)
+	store, err := model.NewStore(fileSrv, logger)
 	if err != nil {
 		return &App{}, err
 	}
 
-	urlService := service.NewURLService(store)
-	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL)
+	urlService := service.NewURLService(store, logger)
+	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL, logger)
 
 	// init Gin and http
 	if cfg.Env == "release" {

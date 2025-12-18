@@ -3,6 +3,8 @@ package model
 import (
 	"strconv"
 	"sync"
+
+	"github.com/anon-d/urlshortener/internal/logger"
 )
 
 type DiskStore interface {
@@ -11,19 +13,21 @@ type DiskStore interface {
 }
 
 type Store struct {
-	mu   sync.RWMutex
-	urls map[string]any
-	disk DiskStore
+	mu     sync.RWMutex
+	urls   map[string]any
+	disk   DiskStore
+	logger *logger.Logger
 }
 
-func NewStore(disk DiskStore) (*Store, error) {
+func NewStore(disk DiskStore, logger *logger.Logger) (*Store, error) {
 	data, err := disk.Load()
 	if err != nil {
 		return nil, err
 	}
 	store := &Store{
-		urls: make(map[string]any),
-		disk: disk,
+		urls:   make(map[string]any),
+		disk:   disk,
+		logger: logger,
 	}
 	for _, item := range data {
 		store.urls[item.ShortURL] = item.OriginalURL

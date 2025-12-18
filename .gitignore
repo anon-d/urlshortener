@@ -24,3 +24,6 @@ vendor/
 
 # includes instructions for viewing code coverage by tests
 Makefile
+
+# local test directory
+tmp

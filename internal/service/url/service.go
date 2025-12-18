@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+
+	"github.com/anon-d/urlshortener/internal/logger"
 )
 
 //go:generate mockgen -source=service.go -destination=mocks/mock_urlstore.go -package=mocks
@@ -15,11 +17,13 @@ type URLStore interface {
 
 type URLService struct {
 	store URLStore
+	zLog  *logger.Logger
 }
 
-func NewURLService(store URLStore) *URLService {
+func NewURLService(store URLStore, zLog *logger.Logger) *URLService {
 	return &URLService{
 		store: store,
+		zLog:  zLog,
 	}
 }
 

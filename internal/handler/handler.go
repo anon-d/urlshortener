@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/anon-d/urlshortener/internal/logger"
 	serviceURL "github.com/anon-d/urlshortener/internal/service/url"
 	"github.com/gin-gonic/gin"
 )
@@ -21,12 +22,14 @@ type APIResponse struct {
 type URLHandler struct {
 	URLService *serviceURL.URLService
 	URLAddr    string
+	logger     *logger.Logger
 }
 
-func NewURLHandler(urlService *serviceURL.URLService, urlAddr string) *URLHandler {
+func NewURLHandler(urlService *serviceURL.URLService, urlAddr string, logger *logger.Logger) *URLHandler {
 	return &URLHandler{
 		URLService: urlService,
 		URLAddr:    urlAddr,
+		logger:     logger,
 	}
 }
 

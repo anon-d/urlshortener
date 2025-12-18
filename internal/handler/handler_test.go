@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/service/url"
 	"github.com/anon-d/urlshortener/internal/service/url/mocks"
 	"github.com/gin-gonic/gin"
@@ -20,8 +21,8 @@ func TestPostURL_Success(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return(nil)
 
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -47,8 +48,8 @@ func TestPostURL_EmptyBody(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -69,8 +70,8 @@ func TestPostURL_ServiceError(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return(errors.New("storage error"))
 
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -93,8 +94,8 @@ func TestGetURL_Success(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().GetURL("abc123").Return("https://example.com", true)
 
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -121,8 +122,8 @@ func TestGetURL_NotFound(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().GetURL("nonexistent").Return(nil, false)
 
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -143,8 +144,8 @@ func TestGetURL_EmptyID(t *testing.T) {
 
 	store := mocks.NewMockURLStore(ctrl)
 	// тут мока нет, т.к. проверяю прям в хендлере
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -166,8 +167,8 @@ func TestShorten_Success(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return(nil)
 
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -200,8 +201,8 @@ func TestShorten_InvalidJSON(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -223,8 +224,8 @@ func TestShorten_MissingURL(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -249,8 +250,8 @@ func TestShorten_ServiceError(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return(errors.New("storage error"))
 
-	urlService := url.NewURLService(store)
-	handler := NewURLHandler(urlService, "http://localhost:8080")
+	urlService := url.NewURLService(store, &logger.Logger{})
+	handler := NewURLHandler(urlService, "http://localhost:8080", &logger.Logger{})
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
