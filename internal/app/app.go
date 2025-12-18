@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,7 @@ import (
 	service "github.com/anon-d/urlshortener/internal/service/url"
 )
 
-const fileName = "data.json"
+const defaultFileName string = "data.json"
 
 type App struct {
 	server     *http.Server
@@ -33,7 +34,12 @@ func New() (*App, error) {
 		return &App{}, err
 	}
 
-	filePath := filepath.Join(cfg.File, fileName)
+	var filePath string
+	if strings.HasSuffix(cfg.File, ".json") {
+		filePath = cfg.File
+	} else {
+		filePath = filepath.Join(cfg.File, defaultFileName)
+	}
 
 	fileSrv := model.NewFileStore(filePath)
 	store, err := model.NewStore(fileSrv)
