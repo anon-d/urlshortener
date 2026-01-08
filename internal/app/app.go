@@ -33,15 +33,22 @@ func New() (*App, error) {
 		return &App{}, err
 	}
 
-	// database connection
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	db, err := postgres.NewRepository(ctx, cfg.DSN, logger)
-	if err != nil {
-		return &App{}, err
-	}
-	if err := db.Ping(ctx); err != nil {
-		return &App{}, err
+	// database connection (optional)
+	var db *postgres.Repository
+	var dbService *serviceDB.DBService
+	if cfg.DSN != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		var err error
+		db, err = postgres.NewRepository(ctx, cfg.DSN, logger)
+		if err != nil {
+			logger.ZLog.Warnw("Failed to connect to database, using file storage", "error", err)
+		} else if err := db.Ping(ctx); err != nil {
+			logger.ZLog.Warnw("Failed to ping database, using file storage", "error", err)
+			db = nil
+		} else {
+			dbService = serviceDB.NewDBService(db)
+		}
 	}
 
 	fileSrv := model.NewFileStore(cfg.File, logger)
@@ -51,7 +58,6 @@ func New() (*App, error) {
 	}
 
 	urlService := serviceURL.NewURLService(store, logger)
-	dbService := serviceDB.NewDBService(db)
 	urlHandler := handler.NewURLHandler(urlService, dbService, cfg.AddrURL, logger)
 
 	// init Gin and http

@@ -28,7 +28,7 @@ func initFlags() {
 	addrURL = flag.String("b", "http://localhost:8080", "base URL for short URLs")
 	envValue = flag.String("e", "dev", "environment")
 	fileValue = flag.String("f", "data.json", "file to store data")
-	dsnValue = flag.String("d", "postgres://user:password@localhost:5432/dbname", "database DSN")
+	dsnValue = flag.String("d", "", "database DSN")
 }
 
 func NewServerConfig() *ServerConfig {
