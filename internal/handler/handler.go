@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/anon-d/urlshortener/internal/logger"
+	serviceDB "github.com/anon-d/urlshortener/internal/service/storage"
 	serviceURL "github.com/anon-d/urlshortener/internal/service/url"
 	"github.com/gin-gonic/gin"
 )
@@ -21,13 +22,15 @@ type APIResponse struct {
 
 type URLHandler struct {
 	URLService *serviceURL.URLService
+	DBService  *serviceDB.DBService
 	URLAddr    string
 	logger     *logger.Logger
 }
 
-func NewURLHandler(urlService *serviceURL.URLService, urlAddr string, logger *logger.Logger) *URLHandler {
+func NewURLHandler(urlService *serviceURL.URLService, dbService *serviceDB.DBService, urlAddr string, logger *logger.Logger) *URLHandler {
 	return &URLHandler{
 		URLService: urlService,
+		DBService:  dbService,
 		URLAddr:    urlAddr,
 		logger:     logger,
 	}
@@ -119,4 +122,12 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
+}
+
+func (u *URLHandler) PingDB(c *gin.Context) {
+	if err := u.DBService.DB.Ping(c); err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(500))
+		return
+	}
+	c.String(http.StatusOK, http.StatusText(200))
 }

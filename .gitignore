@@ -26,4 +26,4 @@ vendor/
 Makefile
 
 # local test directory
-tmp
+docker-compose.yml

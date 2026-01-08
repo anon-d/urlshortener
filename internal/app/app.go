@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -12,7 +13,9 @@ import (
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/middleware"
 	"github.com/anon-d/urlshortener/internal/model"
-	service "github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/anon-d/urlshortener/internal/repository/postgres"
+	serviceDB "github.com/anon-d/urlshortener/internal/service/storage"
+	serviceURL "github.com/anon-d/urlshortener/internal/service/url"
 )
 
 type App struct {
@@ -30,14 +33,26 @@ func New() (*App, error) {
 		return &App{}, err
 	}
 
+	// database connection
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	db, err := postgres.NewRepository(ctx, cfg.DSN, logger)
+	if err != nil {
+		return &App{}, err
+	}
+	if err := db.Ping(ctx); err != nil {
+		return &App{}, err
+	}
+
 	fileSrv := model.NewFileStore(cfg.File, logger)
 	store, err := model.NewStore(fileSrv, logger)
 	if err != nil {
 		return &App{}, err
 	}
 
-	urlService := service.NewURLService(store, logger)
-	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL, logger)
+	urlService := serviceURL.NewURLService(store, logger)
+	dbService := serviceDB.NewDBService(db)
+	urlHandler := handler.NewURLHandler(urlService, dbService, cfg.AddrURL, logger)
 
 	// init Gin and http
 	if cfg.Env == "release" {
@@ -91,6 +106,7 @@ func (a *App) SetupRoutes() {
 	a.router.POST("/", a.urlHandler.PostURL)
 	a.router.GET("/:id", a.urlHandler.GetURL)
 	a.router.POST("/api/shorten", a.urlHandler.Shorten)
+	a.router.GET("/ping", a.urlHandler.PingDB)
 	a.router.NoMethod(a.urlHandler.NotAllowed)
 	a.router.NoRoute(a.urlHandler.NotFound)
 

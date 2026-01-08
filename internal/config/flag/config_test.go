@@ -10,6 +10,7 @@ const (
 	EnvVar     = "prod"
 	URL        = "http://default-host:8081"
 	File       = "data.json"
+	DSN        = "postgres://user:password@localhost:5432/dbname"
 )
 
 // TestNewServerConfig проводит табличные тесты для функции NewServerConfig.
@@ -30,25 +31,29 @@ func TestNewServerConfig(t *testing.T) {
 				"BASE_URL":          URL,
 				"ENV":               EnvVar,
 				"FILE_STORAGE_PATH": File,
+				"DATABASE_DSN":      DSN,
 			},
 			want: ServerConfig{
 				AddrServer: ServerAddr,
 				AddrURL:    URL,
 				Env:        EnvVar,
 				File:       File,
+				DSN:        DSN,
 			},
 		},
 		{
 			name: "Missing server address",
 			envVars: map[string]string{
-				"BASE_URL": URL,
-				"ENV":      EnvVar,
+				"BASE_URL":     URL,
+				"ENV":          EnvVar,
+				"DATABASE_DSN": DSN,
 			},
 			want: ServerConfig{
 				AddrServer: ":8080",
 				AddrURL:    URL,
 				Env:        EnvVar,
 				File:       File,
+				DSN:        DSN,
 			},
 		},
 		{
@@ -59,6 +64,7 @@ func TestNewServerConfig(t *testing.T) {
 				AddrURL:    "http://localhost:8080",
 				Env:        "dev",
 				File:       "data.json",
+				DSN:        "postgres://user:password@localhost:5432/dbname",
 			},
 		},
 		// по сути... тоже самое что и 3 тест,

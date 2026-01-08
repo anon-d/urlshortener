@@ -11,6 +11,7 @@ type ServerConfig struct {
 	AddrURL    string `env:"BASE_URL"`
 	Env        string `env:"ENV"`
 	File       string `env:"FILE_STORAGE_PATH"`
+	DSN        string `env:"DATABASE_DSN"`
 }
 
 var (
@@ -18,6 +19,7 @@ var (
 	addrURL    *string
 	envValue   *string
 	fileValue  *string
+	dsnValue   *string
 	flagsOnce  sync.Once
 )
 
@@ -26,6 +28,7 @@ func initFlags() {
 	addrURL = flag.String("b", "http://localhost:8080", "base URL for short URLs")
 	envValue = flag.String("e", "dev", "environment")
 	fileValue = flag.String("f", "data.json", "file to store data")
+	dsnValue = flag.String("d", "postgres://user:password@localhost:5432/dbname", "database DSN")
 }
 
 func NewServerConfig() *ServerConfig {
@@ -59,6 +62,12 @@ func NewServerConfig() *ServerConfig {
 		cfg.File = envFile
 	} else {
 		cfg.File = *fileValue
+	}
+
+	if envDSN := os.Getenv("DATABASE_DSN"); envDSN != "" {
+		cfg.DSN = envDSN
+	} else {
+		cfg.DSN = *dsnValue
 	}
 
 	return cfg

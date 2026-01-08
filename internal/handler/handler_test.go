@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/anon-d/urlshortener/internal/logger"
+	"github.com/anon-d/urlshortener/internal/service/storage"
+	dbMocks "github.com/anon-d/urlshortener/internal/service/storage/mocks"
 	"github.com/anon-d/urlshortener/internal/service/url"
 	"github.com/anon-d/urlshortener/internal/service/url/mocks"
 	"github.com/gin-gonic/gin"
@@ -22,9 +24,12 @@ func TestPostURL_Success(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return(nil)
 
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -50,9 +55,13 @@ func TestPostURL_EmptyBody(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
+
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -73,9 +82,12 @@ func TestPostURL_ServiceError(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), gomock.Any()).Return(errors.New("storage error"))
 
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -98,9 +110,12 @@ func TestGetURL_Success(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().GetURL("abc123").Return("https://example.com", true)
 
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -127,9 +142,12 @@ func TestGetURL_NotFound(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().GetURL("nonexistent").Return(nil, false)
 
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -150,9 +168,13 @@ func TestGetURL_EmptyID(t *testing.T) {
 
 	store := mocks.NewMockURLStore(ctrl)
 	// тут мока нет, т.к. проверяю прям в хендлере
+
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -174,9 +196,12 @@ func TestShorten_Success(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return(nil)
 
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -209,9 +234,13 @@ func TestShorten_InvalidJSON(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
+
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -233,9 +262,13 @@ func TestShorten_MissingURL(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mocks.NewMockURLStore(ctrl)
+
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -260,9 +293,12 @@ func TestShorten_ServiceError(t *testing.T) {
 	store := mocks.NewMockURLStore(ctrl)
 	store.EXPECT().AddURL(gomock.Any(), "https://example.com").Return(errors.New("storage error"))
 
+	db := dbMocks.NewMockIDB(ctrl)
+
 	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
 	urlService := url.NewURLService(store, testLogger)
-	handler := NewURLHandler(urlService, "http://localhost:8080", testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -277,5 +313,60 @@ func TestShorten_ServiceError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestDBPing_Error(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+
+	db := dbMocks.NewMockIDB(ctrl)
+	db.EXPECT().Ping(gomock.Any()).Return(errors.New("ping error"))
+
+	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	urlService := url.NewURLService(store, testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	c.Request = httptest.NewRequest(http.MethodPost, "/ping", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.PingDB(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestDBPing_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mocks.NewMockURLStore(ctrl)
+
+	db := dbMocks.NewMockIDB(ctrl)
+	db.EXPECT().Ping(gomock.Any()).Return(nil)
+
+	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	urlService := url.NewURLService(store, testLogger)
+	dbService := storage.NewDBService(db)
+	handler := NewURLHandler(urlService, dbService, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	c.Request = httptest.NewRequest(http.MethodPost, "/ping", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.PingDB(c)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }
