@@ -12,10 +12,13 @@ import (
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/middleware"
-	"github.com/anon-d/urlshortener/internal/model"
-	"github.com/anon-d/urlshortener/internal/repository/postgres"
-	serviceDB "github.com/anon-d/urlshortener/internal/service/storage"
-	serviceURL "github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/anon-d/urlshortener/internal/repository/cache"
+	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
+	"github.com/anon-d/urlshortener/internal/repository/local"
+	"github.com/anon-d/urlshortener/internal/service"
+	serviceCache "github.com/anon-d/urlshortener/internal/service/cache"
+	serviceDB "github.com/anon-d/urlshortener/internal/service/db"
+	serviceLocal "github.com/anon-d/urlshortener/internal/service/local"
 )
 
 type App struct {
@@ -47,18 +50,25 @@ func New() (*App, error) {
 			logger.ZLog.Warnw("Failed to ping database, using file storage", "error", err)
 			db = nil
 		} else {
-			dbService = serviceDB.NewDBService(db)
+			// migrations
+			if err := db.Migrate(ctx); err != nil {
+				logger.ZLog.Errorw("Failed to migrate database", "error", err)
+				db = nil
+			}
+			dbService = serviceDB.New(db)
 		}
 	}
 
-	fileSrv := model.NewFileStore(cfg.File, logger)
-	store, err := model.NewStore(fileSrv, logger)
-	if err != nil {
-		return &App{}, err
-	}
+	// local storage
+	localStorage := local.New(cfg.File, logger)
+	fileService := serviceLocal.New(localStorage)
 
-	urlService := serviceURL.NewURLService(store, logger)
-	urlHandler := handler.NewURLHandler(urlService, dbService, cfg.AddrURL, logger)
+	cache := cache.New(db, localStorage)
+	cacheService := serviceCache.New(cache)
+
+	service := service.New(cacheService, fileService, dbService, logger)
+
+	urlHandler := handler.NewURLHandler(service, cfg.AddrURL, logger)
 
 	// init Gin and http
 	if cfg.Env == "release" {

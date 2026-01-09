@@ -8,8 +8,7 @@ import (
 	"net/url"
 
 	"github.com/anon-d/urlshortener/internal/logger"
-	serviceDB "github.com/anon-d/urlshortener/internal/service/storage"
-	serviceURL "github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,18 +20,16 @@ type APIResponse struct {
 }
 
 type URLHandler struct {
-	URLService *serviceURL.URLService
-	DBService  *serviceDB.DBService
-	URLAddr    string
-	logger     *logger.Logger
+	Service *service.Service
+	URLAddr string
+	logger  *logger.Logger
 }
 
-func NewURLHandler(urlService *serviceURL.URLService, dbService *serviceDB.DBService, urlAddr string, logger *logger.Logger) *URLHandler {
+func NewURLHandler(service *service.Service, urlAddr string, logger *logger.Logger) *URLHandler {
 	return &URLHandler{
-		URLService: urlService,
-		DBService:  dbService,
-		URLAddr:    urlAddr,
-		logger:     logger,
+		Service: service,
+		URLAddr: urlAddr,
+		logger:  logger,
 	}
 }
 
@@ -57,6 +54,9 @@ func (u *URLHandler) NotFound(c *gin.Context) {
 	})
 }
 
+// PostURL принимает запрос на создание короткой ссылки по корневому пути,
+// оригинальный URL берется из тела запроса.
+// Возвращается baseURL+shortURL.
 func (u *URLHandler) PostURL(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -67,7 +67,7 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusBadRequest, "empty request body")
 		return
 	}
-	id, err := u.URLService.ShortenURL(body)
+	id, err := u.Service.ShortenURL(c, body)
 	if err != nil {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
@@ -80,13 +80,16 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 	c.String(http.StatusCreated, shortURL)
 }
 
+// GetURL принимает запрос на получение оригинальной ссылки по корневому пути,
+// shortURL берется из параметра запроса (id).
+// Оригинальный URL возвращается в заголовке Location со статусом 307.
 func (u *URLHandler) GetURL(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
 		c.String(http.StatusBadRequest, "missing id parameter")
 		return
 	}
-	urlLong, err := u.URLService.GetURL(id)
+	urlLong, err := u.Service.GetURL(c, id)
 	if err != nil {
 		if errors.Is(err, errors.New("not found")) {
 			c.String(http.StatusNotFound, err.Error())
@@ -98,6 +101,9 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, urlLong)
 }
 
+// Shorten принимает запрос на создание короткой ссылки по пути "/api/shorten",
+// оригинальный URL берется из тела запроса по ключу "url".
+// Возвращается baseURL+shortURL в теле ответа по ключу "result".
 func (u *URLHandler) Shorten(c *gin.Context) {
 	var request APIRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -105,7 +111,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 		return
 	}
 	targetURL := request.URL
-	id, err := u.URLService.ShortenURL([]byte(targetURL))
+	id, err := u.Service.ShortenURL(c, []byte(targetURL))
 	if err != nil {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
@@ -125,11 +131,11 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 }
 
 func (u *URLHandler) PingDB(c *gin.Context) {
-	if u.DBService == nil {
+	if u.Service.DB == nil || !u.Service.DB.IsNotNil() {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
-	if err := u.DBService.DB.Ping(c); err != nil {
+	if err := u.Service.DB.Ping(c); err != nil {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
