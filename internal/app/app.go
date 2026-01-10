@@ -64,7 +64,11 @@ func New() (*App, error) {
 	localStorage := local.New(cfg.File, logger)
 	fileService := serviceLocal.New(localStorage)
 
-	cache := cache.New(db, localStorage)
+	var dbForCache *postgres.Repository
+	if dbService != nil {
+		dbForCache = db
+	}
+	cache := cache.New(dbForCache, localStorage)
 	cacheService := serviceCache.New(cache)
 
 	service := service.New(cacheService, fileService, dbService, logger)
