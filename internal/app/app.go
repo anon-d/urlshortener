@@ -39,24 +39,26 @@ func New() (*App, error) {
 	// database connection (optional)
 	var db *postgres.Repository
 	var dbService *serviceDB.DBService
+
+	// Try to connect to database if DSN is provided
 	if cfg.DSN != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
+
 		var err error
 		db, err = postgres.NewRepository(ctx, cfg.DSN, logger)
 		if err != nil {
 			logger.ZLog.Warnw("Failed to connect to database, using file storage", "error", err)
+			db = nil
 		} else if err := db.Ping(ctx); err != nil {
 			logger.ZLog.Warnw("Failed to ping database, using file storage", "error", err)
 			db = nil
+		} else if err := db.Migrate(ctx); err != nil {
+			logger.ZLog.Errorw("Failed to migrate database, using file storage", "error", err)
+			db = nil
 		} else {
-			// migrations
-			if err := db.Migrate(ctx); err != nil {
-				logger.ZLog.Errorw("Failed to migrate database", "error", err)
-				db = nil
-			} else if db != nil {
-				dbService = serviceDB.New(db)
-			}
+			// If all correct
+			dbService = serviceDB.New(db)
 		}
 	}
 
@@ -64,11 +66,8 @@ func New() (*App, error) {
 	localStorage := local.New(cfg.File, logger)
 	fileService := serviceLocal.New(localStorage)
 
-	var dbForCache *postgres.Repository
-	if db != nil && dbService != nil {
-		dbForCache = db
-	}
-	cache := cache.New(dbForCache, localStorage)
+	// Initialize cache from db (if available) or from file
+	cache := cache.New(db, localStorage)
 	cacheService := serviceCache.New(cache)
 
 	service := service.New(cacheService, fileService, dbService, logger)
