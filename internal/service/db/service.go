@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 
 	"github.com/anon-d/urlshortener/internal/model"
 	"github.com/anon-d/urlshortener/internal/repository"
@@ -24,10 +25,16 @@ func New(db IDB) *DBService {
 }
 
 func (d *DBService) Insert(ctx context.Context, data model.Data) error {
+	if d.db == nil {
+		return errors.New("database not initialized")
+	}
 	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL)
 }
 
 func (d *DBService) Select(ctx context.Context) ([]model.Data, error) {
+	if d.db == nil {
+		return []model.Data{}, errors.New("database not initialized")
+	}
 	data, err := d.db.GetURLs(ctx)
 	if err != nil {
 		return []model.Data{}, err
@@ -40,6 +47,9 @@ func (d *DBService) Select(ctx context.Context) ([]model.Data, error) {
 }
 
 func (d *DBService) Ping(ctx context.Context) error {
+	if d.db == nil {
+		return errors.New("database not initialized")
+	}
 	return d.db.Ping(ctx)
 }
 

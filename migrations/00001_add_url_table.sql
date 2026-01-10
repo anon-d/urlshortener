@@ -1,15 +1,9 @@
 -- +goose Up
-CREATE TABLE urls (
+CREATE TABLE IF NOT EXISTS urls (
     id TEXT PRIMARY KEY,
-    original_url TEXT NOT NULL,
-    short_url TEXT NOT NULL UNIQUE
+    short_url TEXT NOT NULL UNIQUE,
+    original_url TEXT NOT NULL
 );
--- +goose StatementBegin
-SELECT 'up SQL query';
--- +goose StatementEnd
 
 -- +goose Down
-DROP TABLE urls;
--- +goose StatementBegin
-SELECT 'down SQL query';
--- +goose StatementEnd
+DROP TABLE IF EXISTS urls;

@@ -191,8 +191,9 @@ func TestPostURL_WithDB_Error(t *testing.T) {
 
 	handler.PostURL(c)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	// DB fails, but falls back to disk storage successfully
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
 	}
 }
 

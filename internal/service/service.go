@@ -53,17 +53,25 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 
 	s.Cache.Set(&data)
 
+	// Try to save to DB first, fallback to disk if DB is not available
 	if s.DB != nil {
 		err := s.DB.Insert(ctx, data)
 		if err != nil {
-			s.logger.ZLog.Errorw("Failed to insert URL into DB")
-			s.logger.ZLog.Debugw("Error details", zap.Error(err))
-			return nil, err
+			s.logger.ZLog.Warnw("Failed to insert URL into DB, falling back to file storage", "error", err)
+			// Fallback to disk storage
+			if s.Disk != nil {
+				if diskErr := s.Disk.Save(s.Cache.Self()); diskErr != nil {
+					s.logger.ZLog.Errorw("Failed to insert URL into file storage")
+					s.logger.ZLog.Debugw("Error details", zap.Error(diskErr))
+					return nil, diskErr
+				}
+			}
 		}
 	} else if s.Disk != nil {
+		// No DB available, use disk storage
 		err := s.Disk.Save(s.Cache.Self())
 		if err != nil {
-			s.logger.ZLog.Errorw("Failed to insert URL into store")
+			s.logger.ZLog.Errorw("Failed to insert URL into file storage")
 			s.logger.ZLog.Debugw("Error details", zap.Error(err))
 			return nil, err
 		}
