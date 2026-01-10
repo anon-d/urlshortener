@@ -54,7 +54,7 @@ func New() (*App, error) {
 			if err := db.Migrate(ctx); err != nil {
 				logger.ZLog.Errorw("Failed to migrate database", "error", err)
 				db = nil
-			} else {
+			} else if db != nil {
 				dbService = serviceDB.New(db)
 			}
 		}
@@ -65,7 +65,7 @@ func New() (*App, error) {
 	fileService := serviceLocal.New(localStorage)
 
 	var dbForCache *postgres.Repository
-	if dbService != nil {
+	if db != nil && dbService != nil {
 		dbForCache = db
 	}
 	cache := cache.New(dbForCache, localStorage)
