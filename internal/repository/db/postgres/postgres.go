@@ -77,5 +77,10 @@ func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 		}
 		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL})
 	}
+
+	if err := rows.Err(); err != nil {
+		return data, err
+	}
+
 	return data, nil
 }
