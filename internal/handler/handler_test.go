@@ -143,8 +143,9 @@ func TestPostURL_DiskError(t *testing.T) {
 
 	handler.PostURL(c)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	// Disk fails, but URL is still in cache, so request succeeds
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
 	}
 }
 

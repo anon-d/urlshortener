@@ -53,27 +53,20 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 
 	s.Cache.Set(&data)
 
-	// Try to save to DB first, fallback to disk if DB is not available
+	var dbErr error
 	if s.DB != nil {
-		err := s.DB.Insert(ctx, data)
-		if err != nil {
-			s.logger.ZLog.Warnw("Failed to insert URL into DB, falling back to file storage", "error", err)
-			// Fallback to disk storage
-			if s.Disk != nil {
-				if diskErr := s.Disk.Save(s.Cache.Self()); diskErr != nil {
-					s.logger.ZLog.Errorw("Failed to insert URL into file storage")
-					s.logger.ZLog.Debugw("Error details", zap.Error(diskErr))
-					return nil, diskErr
-				}
-			}
+		dbErr = s.DB.Insert(ctx, data)
+		if dbErr != nil {
+			s.logger.ZLog.Warnw("Failed to insert URL into DB", "error", dbErr)
 		}
-	} else if s.Disk != nil {
-		// No DB available, use disk storage
-		err := s.Disk.Save(s.Cache.Self())
-		if err != nil {
-			s.logger.ZLog.Errorw("Failed to insert URL into file storage")
-			s.logger.ZLog.Debugw("Error details", zap.Error(err))
-			return nil, err
+	}
+
+	if s.Disk != nil {
+		if diskErr := s.Disk.Save(s.Cache.Self()); diskErr != nil {
+			s.logger.ZLog.Errorw("Failed to insert URL into file storage", "error", diskErr)
+			if dbErr != nil {
+				return nil, diskErr
+			}
 		}
 	}
 	return []byte(urlID), nil
