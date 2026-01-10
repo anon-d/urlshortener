@@ -55,7 +55,16 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 
 	var dbErr error
 	if s.DB != nil {
-		dbErr = s.DB.Insert(ctx, data)
+		// Safely call DB.Insert with panic recovery
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.ZLog.Warnw("DB call panicked", "panic", r)
+					dbErr = errors.New("database not initialized")
+				}
+			}()
+			dbErr = s.DB.Insert(ctx, data)
+		}()
 		if dbErr != nil {
 			s.logger.ZLog.Warnw("Failed to insert URL into DB", "error", dbErr)
 		}
