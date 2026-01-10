@@ -43,10 +43,6 @@ func (d *DBService) Ping(ctx context.Context) error {
 	return d.db.Ping(ctx)
 }
 
-func (d *DBService) IsNotNil() bool {
-	return d.db != nil
-}
-
 func toModelData(data repository.Data) model.Data {
 	return model.Data{
 		ID:          data.ID,

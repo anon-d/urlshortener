@@ -131,7 +131,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 }
 
 func (u *URLHandler) PingDB(c *gin.Context) {
-	if u.Service.DB == nil || !u.Service.DB.IsNotNil() {
+	if u.Service.DB == nil {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}

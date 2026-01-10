@@ -1,6 +1,6 @@
 -- +goose Up
 CREATE TABLE urls (
-    id UUID PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     original_url TEXT NOT NULL,
     short_url TEXT NOT NULL UNIQUE
 );

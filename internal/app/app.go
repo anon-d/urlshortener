@@ -54,8 +54,9 @@ func New() (*App, error) {
 			if err := db.Migrate(ctx); err != nil {
 				logger.ZLog.Errorw("Failed to migrate database", "error", err)
 				db = nil
+			} else {
+				dbService = serviceDB.New(db)
 			}
-			dbService = serviceDB.New(db)
 		}
 	}
 

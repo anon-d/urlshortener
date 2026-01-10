@@ -56,7 +56,6 @@ func (m *mockDiskService) Load() ([]model.Data, error) {
 
 type mockDBService struct {
 	shouldFail bool
-	isNil      bool
 }
 
 func (m *mockDBService) Insert(ctx context.Context, data model.Data) error {
@@ -75,10 +74,6 @@ func (m *mockDBService) Ping(ctx context.Context) error {
 		return errors.New("ping error")
 	}
 	return nil
-}
-
-func (m *mockDBService) IsNotNil() bool {
-	return !m.isNil
 }
 
 func TestPostURL_Success(t *testing.T) {
@@ -158,7 +153,7 @@ func TestPostURL_WithDB_Success(t *testing.T) {
 	
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
-	db := &mockDBService{isNil: false}
+	db := &mockDBService{}
 	
 	svc := service.New(cache, disk, db, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
@@ -182,7 +177,7 @@ func TestPostURL_WithDB_Error(t *testing.T) {
 	
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
-	db := &mockDBService{isNil: false, shouldFail: true}
+	db := &mockDBService{shouldFail: true}
 	
 	svc := service.New(cache, disk, db, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
@@ -365,7 +360,7 @@ func TestPingDB_Success(t *testing.T) {
 	
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
-	db := &mockDBService{isNil: false, shouldFail: false}
+	db := &mockDBService{shouldFail: false}
 	
 	svc := service.New(cache, disk, db, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
@@ -388,7 +383,7 @@ func TestPingDB_Error(t *testing.T) {
 	
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
-	db := &mockDBService{isNil: false, shouldFail: true}
+	db := &mockDBService{shouldFail: true}
 	
 	svc := service.New(cache, disk, db, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)

@@ -25,7 +25,6 @@ type IDBService interface {
 	Insert(ctx context.Context, data model.Data) error
 	Select(ctx context.Context) ([]model.Data, error)
 	Ping(ctx context.Context) error
-	IsNotNil() bool
 }
 
 type Service struct {
@@ -54,7 +53,7 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 
 	s.Cache.Set(&data)
 
-	if s.DB != nil && s.DB.IsNotNil() {
+	if s.DB != nil {
 		err := s.DB.Insert(ctx, data)
 		if err != nil {
 			s.logger.ZLog.Errorw("Failed to insert URL into DB")
