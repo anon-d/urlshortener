@@ -84,3 +84,20 @@ func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 
 	return data, nil
 }
+
+func (r *Repository) InsertURLsWithTransaction(ctx context.Context, data []repository.Data) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := "INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)"
+	for _, item := range data {
+		if _, err := tx.ExecContext(ctx, query, item.ID, item.ShortURL, item.OriginalURL); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}

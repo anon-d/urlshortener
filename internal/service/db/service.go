@@ -10,6 +10,7 @@ import (
 
 type IDB interface {
 	InsertURL(ctx context.Context, id, shortURL, originalURL string) error
+	InsertURLsWithTransaction(ctx context.Context, data []repository.Data) error
 	GetURLs(ctx context.Context) ([]repository.Data, error)
 	Ping(ctx context.Context) error
 }
@@ -29,6 +30,17 @@ func (d *DBService) Insert(ctx context.Context, data model.Data) error {
 		return errors.New("database not initialized")
 	}
 	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL)
+}
+
+func (d *DBService) InsertBatch(ctx context.Context, dataList []model.Data) error {
+	if d.db == nil {
+		return errors.New("database not initialized")
+	}
+	var data []repository.Data
+	for _, item := range dataList {
+		data = append(data, toRepositoryData(item))
+	}
+	return d.db.InsertURLsWithTransaction(ctx, data)
 }
 
 func (d *DBService) Select(ctx context.Context) ([]model.Data, error) {
@@ -55,6 +67,14 @@ func (d *DBService) Ping(ctx context.Context) error {
 
 func toModelData(data repository.Data) model.Data {
 	return model.Data{
+		ID:          data.ID,
+		ShortURL:    data.ShortURL,
+		OriginalURL: data.OriginalURL,
+	}
+}
+
+func toRepositoryData(data model.Data) repository.Data {
+	return repository.Data{
 		ID:          data.ID,
 		ShortURL:    data.ShortURL,
 		OriginalURL: data.OriginalURL,

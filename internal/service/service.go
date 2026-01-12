@@ -25,6 +25,7 @@ type IDBService interface {
 	Insert(ctx context.Context, data model.Data) error
 	Select(ctx context.Context) ([]model.Data, error)
 	Ping(ctx context.Context) error
+	InsertBatch(ctx context.Context, dataList []model.Data) error
 }
 
 type Service struct {
@@ -89,6 +90,49 @@ func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 		return "", errors.New("URL not found")
 	}
 	return originURL.(string), nil
+}
+
+func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string) (map[string]string, error) {
+	dataMapResult := make(map[string]string, len(dataMap))
+	dataList := make([]model.Data, 0, len(dataMap))
+	for key, value := range dataMap {
+		urlID := generateID()
+		data := model.Data{
+			ID:          urlID,
+			ShortURL:    urlID,
+			OriginalURL: value,
+		}
+		s.Cache.Set(&data)
+		dataList = append(dataList, data)
+		dataMapResult[key] = urlID
+	}
+
+	var dbErr error
+	if s.DB != nil {
+		// Safely call DB.Insert with panic recovery
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.ZLog.Warnw("DB call panicked", "panic", r)
+					dbErr = errors.New("database not initialized")
+				}
+			}()
+			dbErr = s.DB.InsertBatch(ctx, dataList)
+		}()
+		if dbErr != nil {
+			s.logger.ZLog.Warnw("Failed to insert URL into DB", "error", dbErr)
+		}
+	}
+
+	if s.Disk != nil {
+		if diskErr := s.Disk.Save(s.Cache.Self()); diskErr != nil {
+			s.logger.ZLog.Errorw("Failed to insert URL into file storage", "error", diskErr)
+			if dbErr != nil {
+				return dataMapResult, diskErr
+			}
+		}
+	}
+	return dataMapResult, nil
 }
 
 // generateID returns a random string of length 8.

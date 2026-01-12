@@ -19,6 +19,16 @@ type APIResponse struct {
 	Result string `json:"result"`
 }
 
+type ItemBatchRequest struct {
+	CorrelationID string `json:"correlation_id,omitzero"`
+	OriginalID    string `json:"original_id,omitzero"`
+}
+
+type ItemBatchResponse struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
 type URLHandler struct {
 	Service *service.Service
 	URLAddr string
@@ -125,6 +135,51 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL}); err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(500))
+		return
+	}
+}
+
+// BatchShorten принимает запрос на пакетное сокращение URL по пути "/api/shorten/batch",
+// оригинальные URL берутся из тела запроса.
+// Возвращается correlation_id, short_url (baseURL+shortURL) в теле ответа.
+func (u *URLHandler) BatchShorten(c *gin.Context) {
+	var request []ItemBatchRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.String(http.StatusBadRequest, http.StatusText(400))
+		return
+	}
+
+	if len(request) == 0 {
+		c.String(http.StatusBadRequest, "empty batch")
+		return
+	}
+
+	batchURLsMap := make(map[string]string, len(request))
+	for _, item := range request {
+		batchURLsMap[item.CorrelationID] = item.OriginalID
+	}
+	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap)
+	if err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(500))
+		return
+	}
+
+	response := make([]ItemBatchResponse, 0, len(request))
+	for _, item := range request {
+		shortURL, err := url.JoinPath(u.URLAddr, batchURLsMap[item.CorrelationID])
+		if err != nil {
+			c.String(http.StatusInternalServerError, http.StatusText(500))
+			return
+		}
+		response = append(response, ItemBatchResponse{
+			CorrelationID: item.CorrelationID,
+			ShortURL:      shortURL,
+		})
+	}
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(c.Writer).Encode(response); err != nil {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
