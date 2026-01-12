@@ -446,7 +446,7 @@ func TestBatchShorten_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	jsonBody := `[{"correlation_id":"1","original_id":"https://example1.com"},{"correlation_id":"2","original_id":"https://example2.com"}]`
+	jsonBody := `[{"correlation_id":"1","original_url":"https://example1.com"},{"correlation_id":"2","original_url":"https://example2.com"}]`
 	body := strings.NewReader(jsonBody)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten/batch", body)
 	c.Request.Header.Set("Content-Type", "application/json")
@@ -534,7 +534,7 @@ func TestBatchShorten_DBError(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	jsonBody := `[{"correlation_id":"1","original_id":"https://example.com"}]`
+	jsonBody := `[{"correlation_id":"1","original_url":"https://example.com"}]`
 	body := strings.NewReader(jsonBody)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten/batch", body)
 	c.Request.Header.Set("Content-Type", "application/json")

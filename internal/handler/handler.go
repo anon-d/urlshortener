@@ -21,7 +21,7 @@ type APIResponse struct {
 
 type ItemBatchRequest struct {
 	CorrelationID string `json:"correlation_id,omitzero"`
-	OriginalID    string `json:"original_id,omitzero"`
+	OriginalURL   string `json:"original_url,omitzero"`
 }
 
 type ItemBatchResponse struct {
@@ -157,7 +157,7 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 
 	batchURLsMap := make(map[string]string, len(request))
 	for _, item := range request {
-		batchURLsMap[item.CorrelationID] = item.OriginalID
+		batchURLsMap[item.CorrelationID] = item.OriginalURL
 	}
 	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap)
 	if err != nil {
