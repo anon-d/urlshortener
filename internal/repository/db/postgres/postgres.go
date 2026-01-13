@@ -71,24 +71,15 @@ func (r *Repository) GetURLByOriginal(ctx context.Context, originalURL string) (
 
 // IsUniqueViolation проверяет, является ли ошибка нарушением уникального ограничения
 func IsUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// 23505 - код ошибки unique_violation в PostgreSQL
 		return pgErr.Code == "23505"
 	}
-	// Проверка на mock ошибку (для тестов)
-	var mockErr *MockUniqueViolationError
-	if errors.As(err, &mockErr) {
-		return true
-	}
 	return false
-}
-
-// MockUniqueViolationError мок ошибки для тестов
-type MockUniqueViolationError struct{}
-
-func (e *MockUniqueViolationError) Error() string {
-	return "mock unique violation"
 }
 
 func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {

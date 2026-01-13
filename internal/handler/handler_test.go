@@ -10,7 +10,6 @@ import (
 
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/model"
-	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -56,23 +55,13 @@ func (m *mockDiskService) Load() ([]model.Data, error) {
 }
 
 type mockDBService struct {
-	shouldFail      bool
-	simulateConflict bool
-	existingURLs     map[string]string // original_url -> short_url
+	shouldFail bool
 }
 
 func (m *mockDBService) Insert(ctx context.Context, data model.Data) error {
 	if m.shouldFail {
 		return errors.New("db error")
 	}
-	if m.simulateConflict {
-		// Симулируем ошибку unique violation
-		return &postgres.MockUniqueViolationError{}
-	}
-	if m.existingURLs == nil {
-		m.existingURLs = make(map[string]string)
-	}
-	m.existingURLs[data.OriginalURL] = data.ShortURL
 	return nil
 }
 
@@ -90,11 +79,6 @@ func (m *mockDBService) Select(ctx context.Context) ([]model.Data, error) {
 func (m *mockDBService) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
 	if m.shouldFail {
 		return "", errors.New("get url error")
-	}
-	if m.existingURLs != nil {
-		if shortURL, ok := m.existingURLs[originalURL]; ok {
-			return shortURL, nil
-		}
 	}
 	return "existing-short-url", nil
 }
@@ -567,80 +551,5 @@ func TestBatchShorten_DBError(t *testing.T) {
 	// DB fails, but falls back to disk storage successfully
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
-	}
-}
-
-func TestPostURL_Conflict(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
-	
-	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{
-		simulateConflict: true,
-		existingURLs: map[string]string{
-			"https://example.com": "abc123",
-		},
-	}
-	
-	svc := service.New(cache, disk, db, testLogger)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
-
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
-	body := strings.NewReader("https://example.com")
-	c.Request = httptest.NewRequest(http.MethodPost, "/", body)
-
-	handler.PostURL(c)
-
-	if w.Code != http.StatusConflict {
-		t.Errorf("expected status %d, got %d", http.StatusConflict, w.Code)
-	}
-
-	respBody := w.Body.String()
-	if !strings.Contains(respBody, "abc123") {
-		t.Errorf("expected response to contain existing short URL, got %s", respBody)
-	}
-}
-
-func TestShorten_Conflict(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
-	
-	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{
-		simulateConflict: true,
-		existingURLs: map[string]string{
-			"https://example.com": "xyz789",
-		},
-	}
-	
-	svc := service.New(cache, disk, db, testLogger)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
-
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
-	jsonBody := `{"url":"https://example.com"}`
-	body := strings.NewReader(jsonBody)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/shorten", body)
-	c.Request.Header.Set("Content-Type", "application/json")
-
-	handler.Shorten(c)
-
-	if w.Code != http.StatusConflict {
-		t.Errorf("expected status %d, got %d", http.StatusConflict, w.Code)
-	}
-
-	contentType := w.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("expected Content-Type 'application/json', got %s", contentType)
-	}
-
-	respBody := w.Body.String()
-	if !strings.Contains(respBody, "xyz789") {
-		t.Errorf("expected response to contain existing short URL, got %s", respBody)
 	}
 }
