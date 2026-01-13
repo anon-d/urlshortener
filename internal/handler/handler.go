@@ -79,6 +79,17 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 	}
 	id, err := u.Service.ShortenURL(c, body)
 	if err != nil {
+		var conflictErr *service.ConflictError
+		if errors.As(err, &conflictErr) {
+			// URL уже существует, возвращаем 409
+			shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
+			if joinErr != nil {
+				c.String(http.StatusInternalServerError, http.StatusText(500))
+				return
+			}
+			c.String(http.StatusConflict, shortURL)
+			return
+		}
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
@@ -122,22 +133,29 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 	}
 	targetURL := request.URL
 	id, err := u.Service.ShortenURL(c, []byte(targetURL))
-	if err != nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
-		return
-	}
-	shortURL, err := url.JoinPath(u.URLAddr, string(id))
-	if err != nil {
+	
+	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
+	if joinErr != nil {
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL}); err != nil {
+	
+	if err != nil {
+		var conflictErr *service.ConflictError
+		if errors.As(err, &conflictErr) {
+			// URL уже существует, возвращаем 409
+			c.Writer.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL})
+			return
+		}
 		c.String(http.StatusInternalServerError, http.StatusText(500))
 		return
 	}
+
+	c.Writer.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL})
 }
 
 // BatchShorten принимает запрос на пакетное сокращение URL по пути "/api/shorten/batch",

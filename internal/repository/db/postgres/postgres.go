@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -55,6 +56,39 @@ func (r *Repository) InsertURL(ctx context.Context, id, shortURL, originalURL st
 	query := "INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)"
 	_, err := r.db.ExecContext(ctx, query, id, shortURL, originalURL)
 	return err
+}
+
+// GetURLByOriginal находит короткую ссылку по оригинальному URL
+func (r *Repository) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
+	query := "SELECT short_url FROM urls WHERE original_url = $1"
+	var shortURL string
+	err := r.db.QueryRowContext(ctx, query, originalURL).Scan(&shortURL)
+	if err != nil {
+		return "", err
+	}
+	return shortURL, nil
+}
+
+// IsUniqueViolation проверяет, является ли ошибка нарушением уникального ограничения
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// 23505 - код ошибки unique_violation в PostgreSQL
+		return pgErr.Code == "23505"
+	}
+	// Проверка на mock ошибку (для тестов)
+	var mockErr *MockUniqueViolationError
+	if errors.As(err, &mockErr) {
+		return true
+	}
+	return false
+}
+
+// MockUniqueViolationError мок ошибки для тестов
+type MockUniqueViolationError struct{}
+
+func (e *MockUniqueViolationError) Error() string {
+	return "mock unique violation"
 }
 
 func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {

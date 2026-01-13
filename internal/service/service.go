@@ -5,12 +5,23 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 
 	"go.uber.org/zap"
 
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/model"
+	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
 )
+
+// ConflictError ошибка конфликта - URL уже существует
+type ConflictError struct {
+	ShortURL string
+}
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("URL already exists with short_url: %s", e.ShortURL)
+}
 
 type ICacheService interface {
 	Set(data *model.Data)
@@ -26,6 +37,7 @@ type IDBService interface {
 	Select(ctx context.Context) ([]model.Data, error)
 	Ping(ctx context.Context) error
 	InsertBatch(ctx context.Context, dataList []model.Data) error
+	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
 }
 
 type Service struct {
@@ -66,7 +78,17 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 			}()
 			dbErr = s.DB.Insert(ctx, data)
 		}()
-		if dbErr != nil {
+
+		// Обработка конфликта уникальности
+		if dbErr != nil && postgres.IsUniqueViolation(dbErr) {
+			existingShortURL, err := s.DB.GetURLByOriginal(ctx, data.OriginalURL)
+			if err != nil {
+				s.logger.ZLog.Errorw("Failed to get existing URL", "error", err)
+				return nil, err
+			}
+			s.logger.ZLog.Infow("URL already exists, returning conflict", "short_url", existingShortURL)
+			return []byte(existingShortURL), &ConflictError{ShortURL: existingShortURL}
+		} else if dbErr != nil {
 			s.logger.ZLog.Warnw("Failed to insert URL into DB", "error", dbErr)
 		}
 	}

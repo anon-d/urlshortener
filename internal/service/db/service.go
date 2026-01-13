@@ -12,6 +12,7 @@ type IDB interface {
 	InsertURL(ctx context.Context, id, shortURL, originalURL string) error
 	InsertURLsWithTransaction(ctx context.Context, data []repository.Data) error
 	GetURLs(ctx context.Context) ([]repository.Data, error)
+	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
 	Ping(ctx context.Context) error
 }
 
@@ -63,6 +64,13 @@ func (d *DBService) Ping(ctx context.Context) error {
 		return errors.New("database not initialized")
 	}
 	return d.db.Ping(ctx)
+}
+
+func (d *DBService) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
+	if d.db == nil {
+		return "", errors.New("database not initialized")
+	}
+	return d.db.GetURLByOriginal(ctx, originalURL)
 }
 
 func toModelData(data repository.Data) model.Data {
