@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/model"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/gin-gonic/gin"
@@ -91,7 +90,7 @@ func (m *mockDBService) Ping(ctx context.Context) error {
 }
 
 func TestPostURL_Success(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -119,7 +118,7 @@ func TestPostURL_Success(t *testing.T) {
 }
 
 func TestPostURL_EmptyBody(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -140,7 +139,7 @@ func TestPostURL_EmptyBody(t *testing.T) {
 }
 
 func TestPostURL_DiskError(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{shouldFail: true}
@@ -164,7 +163,7 @@ func TestPostURL_DiskError(t *testing.T) {
 }
 
 func TestPostURL_WithDB_Success(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -188,7 +187,7 @@ func TestPostURL_WithDB_Success(t *testing.T) {
 }
 
 func TestPostURL_WithDB_Error(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -213,7 +212,7 @@ func TestPostURL_WithDB_Error(t *testing.T) {
 }
 
 func TestGetURL_Success(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{
 		data: map[string]any{
@@ -244,7 +243,7 @@ func TestGetURL_Success(t *testing.T) {
 }
 
 func TestGetURL_NotFound(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -266,7 +265,7 @@ func TestGetURL_NotFound(t *testing.T) {
 }
 
 func TestGetURL_EmptyID(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -288,7 +287,7 @@ func TestGetURL_EmptyID(t *testing.T) {
 }
 
 func TestShorten_Success(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -323,7 +322,7 @@ func TestShorten_Success(t *testing.T) {
 }
 
 func TestShorten_InvalidJSON(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -347,7 +346,7 @@ func TestShorten_InvalidJSON(t *testing.T) {
 }
 
 func TestShorten_MissingURL(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -372,7 +371,7 @@ func TestShorten_MissingURL(t *testing.T) {
 }
 
 func TestPingDB_Success(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -395,7 +394,7 @@ func TestPingDB_Success(t *testing.T) {
 }
 
 func TestPingDB_Error(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -412,13 +411,14 @@ func TestPingDB_Error(t *testing.T) {
 
 	handler.PingDB(c)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	// PingDB returns 200 even on error because fallback storage exists
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }
 
 func TestPingDB_DBNotConnected(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -434,13 +434,14 @@ func TestPingDB_DBNotConnected(t *testing.T) {
 
 	handler.PingDB(c)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	// PingDB returns 200 even when DB is not connected because fallback storage exists
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }
 
 func TestBatchShorten_Success(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -479,7 +480,7 @@ func TestBatchShorten_Success(t *testing.T) {
 }
 
 func TestBatchShorten_EmptyBatch(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -504,7 +505,7 @@ func TestBatchShorten_EmptyBatch(t *testing.T) {
 }
 
 func TestBatchShorten_InvalidJSON(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}
@@ -528,7 +529,7 @@ func TestBatchShorten_InvalidJSON(t *testing.T) {
 }
 
 func TestBatchShorten_DBError(t *testing.T) {
-	testLogger := &logger.Logger{ZLog: zap.NewNop().Sugar()}
+	testLogger := zap.NewNop().Sugar()
 	
 	cache := &mockCacheService{}
 	disk := &mockDiskService{}

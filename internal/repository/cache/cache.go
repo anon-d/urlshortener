@@ -9,7 +9,7 @@ import (
 )
 
 type Cache struct {
-	mu   sync.RWMutex
+	mu   sync.Mutex
 	data map[string]any
 }
 
@@ -33,8 +33,8 @@ func New(db *postgres.Repository, local *local.Local) *Cache {
 }
 
 func (c *Cache) Get() map[string]any {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	return c.data
 }
@@ -47,8 +47,8 @@ func (c *Cache) Set(id string, url any) {
 }
 
 func (c *Cache) GetOne(id string) (any, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	url, ok := c.data[id]
 	return url, ok

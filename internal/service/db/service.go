@@ -8,19 +8,19 @@ import (
 	"github.com/anon-d/urlshortener/internal/repository"
 )
 
-type IDB interface {
+type Repository interface {
 	InsertURL(ctx context.Context, id, shortURL, originalURL string) error
-	InsertURLsWithTransaction(ctx context.Context, data []repository.Data) error
+	InsertURLsBatch(ctx context.Context, data []repository.Data) error
 	GetURLs(ctx context.Context) ([]repository.Data, error)
 	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
 	Ping(ctx context.Context) error
 }
 
 type DBService struct {
-	db IDB
+	db Repository
 }
 
-func New(db IDB) *DBService {
+func New(db Repository) *DBService {
 	return &DBService{
 		db: db,
 	}
@@ -41,7 +41,7 @@ func (d *DBService) InsertBatch(ctx context.Context, dataList []model.Data) erro
 	for _, item := range dataList {
 		data = append(data, toRepositoryData(item))
 	}
-	return d.db.InsertURLsWithTransaction(ctx, data)
+	return d.db.InsertURLsBatch(ctx, data)
 }
 
 func (d *DBService) Select(ctx context.Context) ([]model.Data, error) {

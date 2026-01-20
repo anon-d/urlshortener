@@ -9,7 +9,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/model"
 	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
 )
@@ -23,16 +22,18 @@ func (e *ConflictError) Error() string {
 	return fmt.Sprintf("URL already exists with short_url: %s", e.ShortURL)
 }
 
-type ICacheService interface {
+type CacheService interface {
 	Set(data *model.Data)
 	Get(id string) (any, bool)
 	Self() []model.Data
 }
-type IDiskService interface {
+
+type DiskService interface {
 	Save(data []model.Data) error
 	Load() ([]model.Data, error)
 }
-type IDBService interface {
+
+type DBService interface {
 	Insert(ctx context.Context, data model.Data) error
 	Select(ctx context.Context) ([]model.Data, error)
 	Ping(ctx context.Context) error
@@ -41,13 +42,13 @@ type IDBService interface {
 }
 
 type Service struct {
-	Cache  ICacheService
-	Disk   IDiskService
-	DB     IDBService
-	logger *logger.Logger
+	Cache  CacheService
+	Disk   DiskService
+	DB     DBService
+	logger *zap.SugaredLogger
 }
 
-func New(cache ICacheService, disk IDiskService, db IDBService, logger *logger.Logger) *Service {
+func New(cache CacheService, disk DiskService, db DBService, logger *zap.SugaredLogger) *Service {
 	return &Service{
 		Cache:  cache,
 		Disk:   disk,
@@ -72,7 +73,7 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					s.logger.ZLog.Warnw("DB call panicked", "panic", r)
+					s.logger.Warnw("DB call panicked", "panic", r)
 					dbErr = errors.New("database not initialized")
 				}
 			}()
@@ -80,25 +81,25 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 		}()
 
 		// Обработка конфликта уникальности
-		if dbErr != nil && postgres.IsUniqueViolation(dbErr) {
+		if dbErr != nil && errors.Is(dbErr, postgres.ErrUniqueViolation) {
 			existingShortURL, err := s.DB.GetURLByOriginal(ctx, data.OriginalURL)
 			if err != nil {
-				s.logger.ZLog.Errorw("Failed to get existing URL", "error", err)
-				return nil, err
+				return nil, fmt.Errorf("failed to get existing URL after unique violation in ShortenURL: %w", err)
 			}
-			s.logger.ZLog.Infow("URL already exists, returning conflict", "short_url", existingShortURL)
+			s.logger.Infow("URL already exists, returning conflict", "short_url", existingShortURL)
 			return []byte(existingShortURL), &ConflictError{ShortURL: existingShortURL}
 		} else if dbErr != nil {
-			s.logger.ZLog.Warnw("Failed to insert URL into DB", "error", dbErr)
+			s.logger.Warnw("Failed to insert URL into DB", "error", dbErr)
 		}
 	}
 
 	if s.Disk != nil {
 		if diskErr := s.Disk.Save(s.Cache.Self()); diskErr != nil {
-			s.logger.ZLog.Errorw("Failed to insert URL into file storage", "error", diskErr)
 			if dbErr != nil {
-				return nil, diskErr
+				s.logger.Errorw("Failed to save to both DB and file storage", "disk_error", diskErr, "db_error", dbErr)
+				return nil, fmt.Errorf("failed to save URL to both DB and file storage in ShortenURL: %w", diskErr)
 			}
+			s.logger.Warnw("Failed to save to file storage, but saved to DB", "error", diskErr)
 		}
 	}
 	return []byte(urlID), nil
@@ -107,8 +108,6 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error
 func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 	originURL, exists := s.Cache.Get(shortURL)
 	if !exists {
-		s.logger.ZLog.Errorw("URL not found")
-		s.logger.ZLog.Debugw("Error details", zap.String("short_URL", shortURL))
 		return "", errors.New("URL not found")
 	}
 	return originURL.(string), nil
@@ -135,23 +134,24 @@ func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					s.logger.ZLog.Warnw("DB call panicked", "panic", r)
+					s.logger.Warnw("DB call panicked", "panic", r)
 					dbErr = errors.New("database not initialized")
 				}
 			}()
 			dbErr = s.DB.InsertBatch(ctx, dataList)
 		}()
 		if dbErr != nil {
-			s.logger.ZLog.Warnw("Failed to insert URL into DB", "error", dbErr)
+			s.logger.Warnw("Failed to insert URL into DB", "error", dbErr)
 		}
 	}
 
 	if s.Disk != nil {
 		if diskErr := s.Disk.Save(s.Cache.Self()); diskErr != nil {
-			s.logger.ZLog.Errorw("Failed to insert URL into file storage", "error", diskErr)
 			if dbErr != nil {
-				return dataMapResult, diskErr
+				s.logger.Errorw("Failed to save batch to both DB and file storage", "disk_error", diskErr, "db_error", dbErr)
+				return dataMapResult, fmt.Errorf("failed to save batch URLs to both DB and file storage in ShortenBatchURL: %w", diskErr)
 			}
+			s.logger.Warnw("Failed to save batch to file storage, but saved to DB", "error", diskErr)
 		}
 	}
 	return dataMapResult, nil

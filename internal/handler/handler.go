@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type APIRequest struct {
@@ -32,10 +32,10 @@ type ItemBatchResponse struct {
 type URLHandler struct {
 	Service *service.Service
 	URLAddr string
-	logger  *logger.Logger
+	logger  *zap.SugaredLogger
 }
 
-func NewURLHandler(service *service.Service, urlAddr string, logger *logger.Logger) *URLHandler {
+func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger) *URLHandler {
 	return &URLHandler{
 		Service: service,
 		URLAddr: urlAddr,
@@ -44,21 +44,21 @@ func NewURLHandler(service *service.Service, urlAddr string, logger *logger.Logg
 }
 
 func (u *URLHandler) NotAllowed(c *gin.Context) {
-	c.JSON(405, gin.H{
+	c.JSON(http.StatusMethodNotAllowed, gin.H{
 		"status":  "Error",
 		"message": "Method not allowed",
 	})
 }
 
 func (u *URLHandler) HealthCheck(c *gin.Context) {
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"status":  "Success",
 		"message": "Health check passed",
 	})
 }
 
 func (u *URLHandler) NotFound(c *gin.Context) {
-	c.JSON(404, gin.H{
+	c.JSON(http.StatusNotFound, gin.H{
 		"status":  "Error",
 		"message": "Not found",
 	})
@@ -84,18 +84,21 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 			// URL уже существует, возвращаем 409
 			shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
 			if joinErr != nil {
-				c.String(http.StatusInternalServerError, http.StatusText(500))
+				u.logger.Errorw("failed to join URL path", "error", joinErr)
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 				return
 			}
 			c.String(http.StatusConflict, shortURL)
 			return
 		}
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Errorw("failed to shorten URL", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 	shortURL, err := url.JoinPath(u.URLAddr, string(id))
 	if err != nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Errorw("failed to join URL path", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 	c.String(http.StatusCreated, shortURL)
@@ -116,7 +119,7 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 			c.String(http.StatusNotFound, err.Error())
 			return
 		}
-		c.String(http.StatusBadRequest, http.StatusText(400))
+		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
 	c.Redirect(http.StatusTemporaryRedirect, urlLong)
@@ -128,7 +131,7 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 func (u *URLHandler) Shorten(c *gin.Context) {
 	var request APIRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.String(http.StatusBadRequest, http.StatusText(400))
+		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
 	targetURL := request.URL
@@ -136,7 +139,8 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 	
 	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
 	if joinErr != nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Errorw("failed to join URL path", "error", joinErr)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 
@@ -150,7 +154,8 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 			_ = json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL})
 			return
 		}
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Errorw("failed to shorten URL", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 
@@ -164,7 +169,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 func (u *URLHandler) BatchShorten(c *gin.Context) {
 	var request []ItemBatchRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.String(http.StatusBadRequest, http.StatusText(400))
+		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
 
@@ -179,7 +184,8 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 	}
 	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap)
 	if err != nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Errorw("failed to shorten batch URLs", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 
@@ -187,7 +193,8 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 	for _, item := range request {
 		shortURL, err := url.JoinPath(u.URLAddr, batchURLsMap[item.CorrelationID])
 		if err != nil {
-			c.String(http.StatusInternalServerError, http.StatusText(500))
+			u.logger.Errorw("failed to join URL path", "error", err)
+			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 			return
 		}
 		response = append(response, ItemBatchResponse{
@@ -198,19 +205,22 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(c.Writer).Encode(response); err != nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Errorw("failed to encode response", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 }
 
 func (u *URLHandler) PingDB(c *gin.Context) {
 	if u.Service.DB == nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Warnw("database is not initialized, using fallback storage")
+		c.String(http.StatusOK, http.StatusText(http.StatusOK))
 		return
 	}
 	if err := u.Service.DB.Ping(c); err != nil {
-		c.String(http.StatusInternalServerError, http.StatusText(500))
+		u.logger.Warnw("database ping failed, using fallback storage", "error", err)
+		c.String(http.StatusOK, http.StatusText(http.StatusOK))
 		return
 	}
-	c.String(http.StatusOK, http.StatusText(200))
+	c.String(http.StatusOK, http.StatusText(http.StatusOK))
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -31,9 +32,9 @@ func New() (*App, error) {
 
 	cfg := config.NewServerConfig()
 
-	logger, err := logger.New()
+	log, err := logger.New()
 	if err != nil {
-		return &App{}, err
+		return &App{}, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
 	// database connection (optional)
@@ -46,15 +47,12 @@ func New() (*App, error) {
 		defer cancel()
 
 		var err error
-		db, err = postgres.NewRepository(ctx, cfg.DSN, logger)
+		db, err = postgres.NewRepository(ctx, cfg.DSN, log)
 		if err != nil {
-			logger.ZLog.Warnw("Failed to connect to database, using file storage", "error", err)
+			log.Warnw("Failed to connect to database, using file storage", "error", err)
 			db = nil
 		} else if err := db.Ping(ctx); err != nil {
-			logger.ZLog.Warnw("Failed to ping database, using file storage", "error", err)
-			db = nil
-		} else if err := db.Migrate(ctx); err != nil {
-			logger.ZLog.Errorw("Failed to migrate database, using file storage", "error", err)
+			log.Warnw("Failed to ping database, using file storage", "error", err)
 			db = nil
 		} else {
 			// If all correct
@@ -63,16 +61,16 @@ func New() (*App, error) {
 	}
 
 	// local storage
-	localStorage := local.New(cfg.File, logger)
+	localStorage := local.New(cfg.File, log)
 	fileService := serviceLocal.New(localStorage)
 
 	// Initialize cache from db (if available) or from file
 	cache := cache.New(db, localStorage)
 	cacheService := serviceCache.New(cache)
 
-	service := service.New(cacheService, fileService, dbService, logger)
+	service := service.New(cacheService, fileService, dbService, log)
 
-	urlHandler := handler.NewURLHandler(service, cfg.AddrURL, logger)
+	urlHandler := handler.NewURLHandler(service, cfg.AddrURL, log)
 
 	// init Gin and http
 	if cfg.Env == "release" {
@@ -101,7 +99,7 @@ func New() (*App, error) {
 	})
 
 	// middleware
-	router.Use(middleware.GlobalMiddleware(logger)...)
+	router.Use(middleware.GlobalMiddleware(log)...)
 
 	router.HandleMethodNotAllowed = true
 

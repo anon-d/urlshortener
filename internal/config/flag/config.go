@@ -40,31 +40,31 @@ func NewServerConfig() *ServerConfig {
 
 	cfg := &ServerConfig{}
 
-	if envAddr := os.Getenv("SERVER_ADDRESS"); envAddr != "" {
+	if envAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
 		cfg.AddrServer = envAddr
 	} else {
 		cfg.AddrServer = *addrServer
 	}
 
-	if envURL := os.Getenv("BASE_URL"); envURL != "" {
+	if envURL, ok := os.LookupEnv("BASE_URL"); ok {
 		cfg.AddrURL = envURL
 	} else {
 		cfg.AddrURL = *addrURL
 	}
 
-	if envEnv := os.Getenv("ENV"); envEnv != "" {
+	if envEnv, ok := os.LookupEnv("ENV"); ok {
 		cfg.Env = envEnv
 	} else {
 		cfg.Env = *envValue
 	}
 
-	if envFile := os.Getenv("FILE_STORAGE_PATH"); envFile != "" {
+	if envFile, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok {
 		cfg.File = envFile
 	} else {
 		cfg.File = *fileValue
 	}
 
-	if envDSN := os.Getenv("DATABASE_DSN"); envDSN != "" {
+	if envDSN, ok := os.LookupEnv("DATABASE_DSN"); ok {
 		cfg.DSN = envDSN
 	} else {
 		cfg.DSN = *dsnValue

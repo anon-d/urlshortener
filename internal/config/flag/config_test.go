@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
 
@@ -84,26 +83,9 @@ func TestNewServerConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			originalEnv := make(map[string]string)
-			envKeys := []string{"SERVER_ADDRESS", "BASE_URL", "ENV", "FILE"}
-			for _, key := range envKeys {
-				originalEnv[key] = os.Getenv(key)
-				os.Unsetenv(key)
-			}
-
-			defer func() {
-				for key, val := range originalEnv {
-					if val != "" {
-						os.Setenv(key, val)
-					} else {
-						os.Unsetenv(key)
-					}
-				}
-			}()
-
-			for key, val := range tt.envVars {
-				os.Setenv(key, val)
-			}
+		for key, val := range tt.envVars {
+			t.Setenv(key, val)
+		}
 
 			got := NewServerConfig()
 

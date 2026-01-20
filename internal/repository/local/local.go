@@ -8,16 +8,15 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/model"
 )
 
 type Local struct {
 	path   string
-	logger *logger.Logger
+	logger *zap.SugaredLogger
 }
 
-func New(path string, logger *logger.Logger) *Local {
+func New(path string, logger *zap.SugaredLogger) *Local {
 	return &Local{
 		path:   path,
 		logger: logger,
@@ -27,45 +26,36 @@ func New(path string, logger *logger.Logger) *Local {
 func (l *Local) Save(data []model.Data) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
-		l.logger.ZLog.Errorw("Failed to marshal cache data")
-		l.logger.ZLog.Debugw("Error description",
-			zap.Error(err),
-			zap.String("data_type", fmt.Sprintf("%T", data)))
-		return err
+		return fmt.Errorf("failed to marshal data in local.Save: %w", err)
 	}
 
-	l.logger.ZLog.Debugw("Creating directory for file storage")
+	l.logger.Debugw("Creating directory for file storage")
 	dir := filepath.Dir(l.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		l.logger.ZLog.Errorw("Failed to create directory")
-		l.logger.ZLog.Debugw("Error description",
-			zap.Error(err),
-			zap.String("directory", dir),
-		)
-		return err
+		return fmt.Errorf("failed to create directory %s in local.Save: %w", dir, err)
 	}
 
-	l.logger.ZLog.Debugw("Writing data to file")
-	return os.WriteFile(l.path, bytes, 0644)
+	l.logger.Debugw("Writing data to file")
+	if err := os.WriteFile(l.path, bytes, 0644); err != nil {
+		return fmt.Errorf("failed to write file %s in local.Save: %w", l.path, err)
+	}
+	return nil
 }
 func (l *Local) Load() ([]model.Data, error) {
 	data := []model.Data{}
-	l.logger.ZLog.Debugw("Loading data from file")
+	l.logger.Debugw("Loading data from file")
 	bytes, err := os.ReadFile(l.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			l.logger.ZLog.Warnw("File not exists")
+			l.logger.Warnw("File not exists")
 			return data, nil
 		}
-		l.logger.ZLog.Errorw("Failed to read file")
-		l.logger.ZLog.Debugw("Error description",
-			zap.Error(err),
-			zap.String("file_path", l.path),
-		)
-		return nil, err
+		return nil, fmt.Errorf("failed to read file %s in local.Load: %w", l.path, err)
 	}
 
-	l.logger.ZLog.Debugw("Unmarshaling data from file to Data", zap.ByteString("data_bytes", bytes))
-	err = json.Unmarshal(bytes, &data)
-	return data, err
+	l.logger.Debugw("Unmarshaling data from file to Data", zap.ByteString("data_bytes", bytes))
+	if err := json.Unmarshal(bytes, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal data from file %s in local.Load: %w", l.path, err)
+	}
+	return data, nil
 }
