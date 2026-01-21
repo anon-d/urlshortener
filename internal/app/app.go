@@ -36,6 +36,10 @@ func New() (*App, error) {
 		return &App{}, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
+	// Initialize cache
+	cacheStorage := cache.New(nil, nil)
+	cacheService := serviceCache.New(cacheStorage)
+
 	// Initialize storage (database or local file)
 	var storage repository.Storage
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -58,16 +62,14 @@ func New() (*App, error) {
 		storage = repository.NewLocalAdapter(localStorage)
 	}
 
-	// Initialize cache
-	cacheData, _ := storage.Select(ctx)
-	cacheStorage := cache.New(nil, nil)
-	for _, item := range cacheData {
-		cacheStorage.Set(item.ID, item.OriginalURL)
+	// Load data into cache from storage
+	if cacheData, err := storage.Select(ctx); err == nil {
+		for _, item := range cacheData {
+			cacheStorage.Set(item.ID, item.OriginalURL)
+		}
 	}
-	cacheService := serviceCache.New(cacheStorage)
 
 	svc := service.New(cacheService, storage, log)
-
 	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log)
 
 	// init Gin and http
