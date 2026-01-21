@@ -36,8 +36,11 @@ func New() (*App, error) {
 		return &App{}, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
+	// Initialize local storage
+	localStorage := local.New(cfg.File, log)
+
 	// Initialize cache
-	cacheStorage := cache.New(nil, nil)
+	cacheStorage := cache.New(nil, localStorage)
 	cacheService := serviceCache.New(cacheStorage)
 
 	// Initialize storage (database or local file)
@@ -58,7 +61,6 @@ func New() (*App, error) {
 
 	// Fallback to local file storage
 	if storage == nil {
-		localStorage := local.New(cfg.File, log)
 		storage = repository.NewLocalAdapter(localStorage)
 	}
 
