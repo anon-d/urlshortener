@@ -81,6 +81,7 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 	if err != nil {
 		var conflictErr *service.ConflictError
 		if errors.As(err, &conflictErr) {
+			u.logger.Warnw("URL already exists", "error", conflictErr)
 			// URL уже существует, возвращаем 409
 			shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
 			if joinErr != nil {
@@ -136,7 +137,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 	}
 	targetURL := request.URL
 	id, err := u.Service.ShortenURL(c, []byte(targetURL))
-	
+
 	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
 	if joinErr != nil {
 		u.logger.Errorw("failed to join URL path", "error", joinErr)
@@ -145,7 +146,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
-	
+
 	if err != nil {
 		var conflictErr *service.ConflictError
 		if errors.As(err, &conflictErr) {
@@ -212,14 +213,14 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 }
 
 func (u *URLHandler) PingDB(c *gin.Context) {
-	if u.Service.DB == nil {
-		u.logger.Warnw("database is not initialized, using fallback storage")
-		c.String(http.StatusOK, http.StatusText(http.StatusOK))
+	if u.Service.Storage == nil {
+		u.logger.Warnw("storage is not initialized")
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
-	if err := u.Service.DB.Ping(c); err != nil {
-		u.logger.Warnw("database ping failed, using fallback storage", "error", err)
-		c.String(http.StatusOK, http.StatusText(http.StatusOK))
+	if err := u.Service.Storage.Ping(c); err != nil {
+		u.logger.Warnw("storage ping failed", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
 	c.String(http.StatusOK, http.StatusText(http.StatusOK))

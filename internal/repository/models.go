@@ -1,5 +1,9 @@
 package repository
 
+import "errors"
+
+var ErrNotFound = errors.New("not found")
+
 type Data struct {
 	ID          string
 	OriginalURL string

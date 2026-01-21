@@ -38,51 +38,36 @@ func (m *mockCacheService) Self() []model.Data {
 	return []model.Data{}
 }
 
-type mockDiskService struct {
+type mockStorage struct {
 	shouldFail bool
 }
 
-func (m *mockDiskService) Save(data []model.Data) error {
+func (m *mockStorage) Insert(ctx context.Context, data model.Data) error {
 	if m.shouldFail {
-		return errors.New("disk error")
+		return errors.New("storage error")
 	}
 	return nil
 }
 
-func (m *mockDiskService) Load() ([]model.Data, error) {
+func (m *mockStorage) InsertBatch(ctx context.Context, dataList []model.Data) error {
+	if m.shouldFail {
+		return errors.New("storage batch error")
+	}
+	return nil
+}
+
+func (m *mockStorage) Select(ctx context.Context) ([]model.Data, error) {
 	return []model.Data{}, nil
 }
 
-type mockDBService struct {
-	shouldFail bool
-}
-
-func (m *mockDBService) Insert(ctx context.Context, data model.Data) error {
-	if m.shouldFail {
-		return errors.New("db error")
-	}
-	return nil
-}
-
-func (m *mockDBService) InsertBatch(ctx context.Context, dataList []model.Data) error {
-	if m.shouldFail {
-		return errors.New("db batch error")
-	}
-	return nil
-}
-
-func (m *mockDBService) Select(ctx context.Context) ([]model.Data, error) {
-	return []model.Data{}, nil
-}
-
-func (m *mockDBService) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
+func (m *mockStorage) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
 	if m.shouldFail {
 		return "", errors.New("get url error")
 	}
 	return "existing-short-url", nil
 }
 
-func (m *mockDBService) Ping(ctx context.Context) error {
+func (m *mockStorage) Ping(ctx context.Context) error {
 	if m.shouldFail {
 		return errors.New("ping error")
 	}
@@ -93,9 +78,8 @@ func TestPostURL_Success(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -121,9 +105,8 @@ func TestPostURL_EmptyBody(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -142,9 +125,8 @@ func TestPostURL_DiskError(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{shouldFail: true}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: true}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -166,10 +148,8 @@ func TestPostURL_WithDB_Success(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{}
 
-	svc := service.New(cache, disk, db, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -190,10 +170,8 @@ func TestPostURL_WithDB_Error(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{shouldFail: true}
 
-	svc := service.New(cache, disk, db, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: true}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -219,9 +197,8 @@ func TestGetURL_Success(t *testing.T) {
 			"abc123": "https://example.com",
 		},
 	}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -246,9 +223,8 @@ func TestGetURL_NotFound(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -268,9 +244,8 @@ func TestGetURL_EmptyID(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -290,9 +265,8 @@ func TestShorten_Success(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -325,9 +299,8 @@ func TestShorten_InvalidJSON(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -349,9 +322,8 @@ func TestShorten_MissingURL(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -374,10 +346,8 @@ func TestPingDB_Success(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{shouldFail: false}
 
-	svc := service.New(cache, disk, db, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -397,10 +367,8 @@ func TestPingDB_Error(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{shouldFail: true}
 
-	svc := service.New(cache, disk, db, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -421,9 +389,8 @@ func TestPingDB_DBNotConnected(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -434,9 +401,9 @@ func TestPingDB_DBNotConnected(t *testing.T) {
 
 	handler.PingDB(c)
 
-	// PingDB returns 200 even when DB is not connected because fallback storage exists
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	// PingDB returns 500 when storage is not initialized
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 	}
 }
 
@@ -444,10 +411,8 @@ func TestBatchShorten_Success(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{}
 
-	svc := service.New(cache, disk, db, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -483,9 +448,8 @@ func TestBatchShorten_EmptyBatch(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -508,9 +472,8 @@ func TestBatchShorten_InvalidJSON(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
 
-	svc := service.New(cache, disk, nil, testLogger)
+	svc := service.New(cache, nil, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)
@@ -532,10 +495,8 @@ func TestBatchShorten_DBError(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 	
 	cache := &mockCacheService{}
-	disk := &mockDiskService{}
-	db := &mockDBService{shouldFail: true}
 	
-	svc := service.New(cache, disk, db, testLogger)
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
 	gin.SetMode(gin.TestMode)

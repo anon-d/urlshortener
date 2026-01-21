@@ -13,13 +13,12 @@ import (
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/middleware"
+	"github.com/anon-d/urlshortener/internal/repository"
 	"github.com/anon-d/urlshortener/internal/repository/cache"
 	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
 	"github.com/anon-d/urlshortener/internal/repository/local"
 	"github.com/anon-d/urlshortener/internal/service"
 	serviceCache "github.com/anon-d/urlshortener/internal/service/cache"
-	serviceDB "github.com/anon-d/urlshortener/internal/service/db"
-	serviceLocal "github.com/anon-d/urlshortener/internal/service/local"
 )
 
 type App struct {
@@ -37,40 +36,39 @@ func New() (*App, error) {
 		return &App{}, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	// database connection (optional)
-	var db *postgres.Repository
-	var dbService *serviceDB.DBService
+	// Initialize storage (database or local file)
+	var storage repository.Storage
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	// Try to connect to database if DSN is provided
 	if cfg.DSN != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-
-		var err error
-		db, err = postgres.NewRepository(ctx, cfg.DSN, log)
+		db, err := postgres.NewRepository(ctx, cfg.DSN, log)
 		if err != nil {
 			log.Warnw("Failed to connect to database, using file storage", "error", err)
-			db = nil
 		} else if err := db.Ping(ctx); err != nil {
 			log.Warnw("Failed to ping database, using file storage", "error", err)
-			db = nil
 		} else {
-			// If all correct
-			dbService = serviceDB.New(db)
+			storage = repository.NewDBAdapter(db)
 		}
 	}
 
-	// local storage
-	localStorage := local.New(cfg.File, log)
-	fileService := serviceLocal.New(localStorage)
+	// Fallback to local file storage
+	if storage == nil {
+		localStorage := local.New(cfg.File, log)
+		storage = repository.NewLocalAdapter(localStorage)
+	}
 
-	// Initialize cache from db (if available) or from file
-	cache := cache.New(db, localStorage)
-	cacheService := serviceCache.New(cache)
+	// Initialize cache
+	cacheData, _ := storage.Select(ctx)
+	cacheStorage := cache.New(nil, nil)
+	for _, item := range cacheData {
+		cacheStorage.Set(item.ID, item.OriginalURL)
+	}
+	cacheService := serviceCache.New(cacheStorage)
 
-	service := service.New(cacheService, fileService, dbService, log)
+	svc := service.New(cacheService, storage, log)
 
-	urlHandler := handler.NewURLHandler(service, cfg.AddrURL, log)
+	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log)
 
 	// init Gin and http
 	if cfg.Env == "release" {

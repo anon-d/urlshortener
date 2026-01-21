@@ -12,10 +12,26 @@ import (
 
 func GlobalMiddleware(logger *zap.SugaredLogger) []gin.HandlerFunc {
 	return []gin.HandlerFunc{
+		PanicMiddleware(logger),
 		RequestMiddleware(logger),
 		ResponseMiddleware(logger),
 		CompressionResponse(),
 		DecompressionRequest(),
+	}
+}
+
+func PanicMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Errorw("Panic recovered", "panic", r)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  "Error",
+					"message": "Internal server error",
+				})
+			}
+		}()
+		c.Next()
 	}
 }
 
