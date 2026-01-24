@@ -12,6 +12,7 @@ type Storage interface {
 	InsertBatch(ctx context.Context, dataList []model.Data) error
 	Select(ctx context.Context) ([]model.Data, error)
 	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
+	GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error)
 	Ping(ctx context.Context) error
 }
 
@@ -25,7 +26,7 @@ func NewDBAdapter(db DB) *DBAdapter {
 }
 
 func (d *DBAdapter) Insert(ctx context.Context, data model.Data) error {
-	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL)
+	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL, data.UserID)
 }
 
 func (d *DBAdapter) InsertBatch(ctx context.Context, dataList []model.Data) error {
@@ -35,6 +36,7 @@ func (d *DBAdapter) InsertBatch(ctx context.Context, dataList []model.Data) erro
 			ID:          item.ID,
 			ShortURL:    item.ShortURL,
 			OriginalURL: item.OriginalURL,
+			UserID:      item.UserID,
 		}
 	}
 	return d.db.InsertURLsBatch(ctx, data)
@@ -51,6 +53,7 @@ func (d *DBAdapter) Select(ctx context.Context) ([]model.Data, error) {
 			ID:          item.ID,
 			ShortURL:    item.ShortURL,
 			OriginalURL: item.OriginalURL,
+			UserID:      item.UserID,
 		}
 	}
 	return result, nil
@@ -58,6 +61,23 @@ func (d *DBAdapter) Select(ctx context.Context) ([]model.Data, error) {
 
 func (d *DBAdapter) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
 	return d.db.GetURLByOriginal(ctx, originalURL)
+}
+
+func (d *DBAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	data, err := d.db.GetURLsByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]model.Data, len(data))
+	for i, item := range data {
+		result[i] = model.Data{
+			ID:          item.ID,
+			ShortURL:    item.ShortURL,
+			OriginalURL: item.OriginalURL,
+			UserID:      item.UserID,
+		}
+	}
+	return result, nil
 }
 
 func (d *DBAdapter) Ping(ctx context.Context) error {
@@ -104,15 +124,30 @@ func (l *LocalAdapter) GetURLByOriginal(ctx context.Context, originalURL string)
 	return "", ErrNotFound
 }
 
+func (l *LocalAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	data, err := l.local.Load()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]model.Data, 0)
+	for _, item := range data {
+		if item.UserID == userID {
+			result = append(result, item)
+		}
+	}
+	return result, nil
+}
+
 func (l *LocalAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
 type DB interface {
-	InsertURL(ctx context.Context, id, shortURL, originalURL string) error
+	InsertURL(ctx context.Context, id, shortURL, originalURL, userID string) error
 	InsertURLsBatch(ctx context.Context, data []Data) error
 	GetURLs(ctx context.Context) ([]Data, error)
 	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
+	GetURLsByUser(ctx context.Context, userID string) ([]Data, error)
 	Ping(ctx context.Context) error
 }
 

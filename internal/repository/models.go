@@ -8,4 +8,5 @@ type Data struct {
 	ID          string
 	OriginalURL string
 	ShortURL    string
+	UserID      string
 }

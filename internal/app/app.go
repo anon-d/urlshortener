@@ -102,6 +102,7 @@ func New() (*App, error) {
 
 	// middleware
 	router.Use(middleware.GlobalMiddleware(log)...)
+	router.Use(middleware.AuthMiddleware())
 
 	router.HandleMethodNotAllowed = true
 
@@ -128,6 +129,7 @@ func (a *App) SetupRoutes() {
 	a.router.POST("/api/shorten", a.urlHandler.Shorten)
 	a.router.GET("/ping", a.urlHandler.PingDB)
 	a.router.POST("/api/shorten/batch", a.urlHandler.BatchShorten)
+	a.router.GET("/api/user/urls", a.urlHandler.GetUserURLs)
 	a.router.NoMethod(a.urlHandler.NotAllowed)
 	a.router.NoRoute(a.urlHandler.NotFound)
 

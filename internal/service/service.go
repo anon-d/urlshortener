@@ -45,10 +45,18 @@ func New(cache CacheService, storage repository.Storage, logger *zap.SugaredLogg
 
 func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error) {
 	urlID := generateID()
+	
+	// Получаем user_id из контекста
+	userID := ""
+	if uid, ok := ctx.Value("user_id").(string); ok {
+		userID = uid
+	}
+	
 	data := model.Data{
 		ID:          urlID,
 		ShortURL:    urlID,
 		OriginalURL: string(longURL),
+		UserID:      userID,
 	}
 
 	s.Cache.Set(&data)
@@ -80,7 +88,21 @@ func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 	return originURL.(string), nil
 }
 
+// GetURLsByUser возвращает все URL, созданные пользователем
+func (s *Service) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	if s.Storage == nil {
+		return nil, errors.New("storage is not available")
+	}
+	return s.Storage.GetURLsByUser(ctx, userID)
+}
+
 func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string) (map[string]string, error) {
+	// Получаем user_id из контекста
+	userID := ""
+	if uid, ok := ctx.Value("user_id").(string); ok {
+		userID = uid
+	}
+	
 	dataMapResult := make(map[string]string, len(dataMap))
 	dataList := make([]model.Data, 0, len(dataMap))
 	for key, value := range dataMap {
@@ -89,6 +111,7 @@ func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string
 			ID:          urlID,
 			ShortURL:    urlID,
 			OriginalURL: value,
+			UserID:      userID,
 		}
 		s.Cache.Set(&data)
 		dataList = append(dataList, data)
