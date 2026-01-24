@@ -29,6 +29,11 @@ type ItemBatchResponse struct {
 	ShortURL      string `json:"short_url"`
 }
 
+type UserURLResponse struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
 type URLHandler struct {
 	Service *service.Service
 	URLAddr string
@@ -224,4 +229,47 @@ func (u *URLHandler) PingDB(c *gin.Context) {
 		return
 	}
 	c.String(http.StatusOK, http.StatusText(http.StatusOK))
+}
+
+// GetUserURLs возвращает все URL, созданные пользователем
+func (u *URLHandler) GetUserURLs(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
+		c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		return
+	}
+
+	urls, err := u.Service.GetURLsByUser(c, userIDStr)
+	if err != nil {
+		u.logger.Errorw("failed to get user URLs", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		return
+	}
+
+	if len(urls) == 0 {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
+	response := make([]UserURLResponse, 0, len(urls))
+	for _, item := range urls {
+		shortURL, err := url.JoinPath(u.URLAddr, item.ShortURL)
+		if err != nil {
+			u.logger.Errorw("failed to join URL path", "error", err)
+			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			return
+		}
+		response = append(response, UserURLResponse{
+			ShortURL:    shortURL,
+			OriginalURL: item.OriginalURL,
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }

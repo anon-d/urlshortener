@@ -67,6 +67,26 @@ func (m *mockStorage) GetURLByOriginal(ctx context.Context, originalURL string) 
 	return "existing-short-url", nil
 }
 
+func (m *mockStorage) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	if m.shouldFail {
+		return nil, errors.New("get urls by user error")
+	}
+	return []model.Data{
+		{
+			ID:          "abc123",
+			ShortURL:    "abc123",
+			OriginalURL: "https://example1.com",
+			UserID:      userID,
+		},
+		{
+			ID:          "def456",
+			ShortURL:    "def456",
+			OriginalURL: "https://example2.com",
+			UserID:      userID,
+		},
+	}, nil
+}
+
 func (m *mockStorage) Ping(ctx context.Context) error {
 	if m.shouldFail {
 		return errors.New("ping error")
@@ -493,9 +513,9 @@ func TestBatchShorten_InvalidJSON(t *testing.T) {
 
 func TestBatchShorten_DBError(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
-	
+
 	cache := &mockCacheService{}
-	
+
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
 
@@ -514,4 +534,155 @@ func TestBatchShorten_DBError(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
 	}
+}
+
+// для хендлера с URL пользователя
+func TestGetUserURLs_Success(t *testing.T) {
+	testLogger := zap.NewNop().Sugar()
+
+	cache := &mockCacheService{}
+
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// Устанавливаем user_id в контекст
+	c.Set("user_id", "test-user-123")
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+
+	handler.GetUserURLs(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	respBody := w.Body.String()
+	if !strings.Contains(respBody, "short_url") {
+		t.Errorf("expected response to contain 'short_url' field, got %s", respBody)
+	}
+	if !strings.Contains(respBody, "original_url") {
+		t.Errorf("expected response to contain 'original_url' field, got %s", respBody)
+	}
+}
+
+func TestGetUserURLs_NoUserID(t *testing.T) {
+	testLogger := zap.NewNop().Sugar()
+
+	cache := &mockCacheService{}
+
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// без user_id
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+
+	handler.GetUserURLs(c)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestGetUserURLs_EmptyUserID(t *testing.T) {
+	testLogger := zap.NewNop().Sugar()
+
+	cache := &mockCacheService{}
+
+	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// пустой user_id
+	c.Set("user_id", "")
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+
+	handler.GetUserURLs(c)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestGetUserURLs_NoContent(t *testing.T) {
+	testLogger := zap.NewNop().Sugar()
+
+	cache := &mockCacheService{}
+
+	// пстой список
+	emptyStorage := &mockStorageEmpty{}
+
+	svc := service.New(cache, emptyStorage, testLogger)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	c.Set("user_id", "test-user-123")
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+
+	handler.GetUserURLs(c)
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected status %d, got %d", http.StatusNoContent, w.Code)
+	}
+}
+
+func TestGetUserURLs_StorageError(t *testing.T) {
+	testLogger := zap.NewNop().Sugar()
+
+	cache := &mockCacheService{}
+
+	svc := service.New(cache, &mockStorage{shouldFail: true}, testLogger)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	c.Set("user_id", "test-user-123")
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+
+	handler.GetUserURLs(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+// мок для тестирования пустого списка URL
+type mockStorageEmpty struct{}
+
+func (m *mockStorageEmpty) Insert(ctx context.Context, data model.Data) error {
+	return nil
+}
+
+func (m *mockStorageEmpty) InsertBatch(ctx context.Context, dataList []model.Data) error {
+	return nil
+}
+
+func (m *mockStorageEmpty) Select(ctx context.Context) ([]model.Data, error) {
+	return []model.Data{}, nil
+}
+
+func (m *mockStorageEmpty) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
+	return "", errors.New("not found")
+}
+
+func (m *mockStorageEmpty) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	return []model.Data{}, nil
+}
+
+func (m *mockStorageEmpty) Ping(ctx context.Context) error {
+	return nil
 }

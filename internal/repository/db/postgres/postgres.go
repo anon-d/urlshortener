@@ -64,9 +64,9 @@ func (r *Repository) migrate(ctx context.Context) error {
 	return nil
 }
 
-func (r *Repository) InsertURL(ctx context.Context, id, shortURL, originalURL string) error {
-	query := "INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)"
-	_, err := r.db.ExecContext(ctx, query, id, shortURL, originalURL)
+func (r *Repository) InsertURL(ctx context.Context, id, shortURL, originalURL, userID string) error {
+	query := "INSERT INTO urls (id, short_url, original_url, user_id) VALUES ($1, $2, $3, $4)"
+	_, err := r.db.ExecContext(ctx, query, id, shortURL, originalURL, userID)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return fmt.Errorf("failed to insert URL (id=%s) in InsertURL: %w", id, ErrUniqueViolation)
@@ -101,7 +101,7 @@ func isUniqueViolation(err error) bool {
 }
 
 func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
-	query := "SELECT * FROM urls"
+	query := "SELECT id, short_url, original_url, COALESCE(user_id, '') FROM urls"
 	data := make([]repository.Data, 0)
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -114,11 +114,11 @@ func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var id, shortURL, originalURL string
-		if err := rows.Scan(&id, &shortURL, &originalURL); err != nil {
+		var id, shortURL, originalURL, userID string
+		if err := rows.Scan(&id, &shortURL, &originalURL, &userID); err != nil {
 			return data, fmt.Errorf("failed to scan row in GetURLs: %w", err)
 		}
-		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL})
+		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL, UserID: userID})
 	}
 
 	if err := rows.Err(); err != nil {
@@ -143,16 +143,16 @@ func (r *Repository) InsertURLsBatch(ctx context.Context, data []repository.Data
 		pgConn := driverConn.(*stdlib.Conn).Conn()
 		batch := &pgx.Batch{}
 
-		query := "INSERT INTO urls (id, short_url, original_url) VALUES ($1, $2, $3)"
+		query := "INSERT INTO urls (id, short_url, original_url, user_id) VALUES ($1, $2, $3, $4)"
 		for _, item := range data {
-			batch.Queue(query, item.ID, item.ShortURL, item.OriginalURL)
+			batch.Queue(query, item.ID, item.ShortURL, item.OriginalURL, item.UserID)
 		}
 
 		br := pgConn.SendBatch(ctx, batch)
 		defer br.Close()
 
 		// Process results
-		for i := 0; i < len(data); i++ {
+		for i := 0; i < len(data); i++ { // можно делать for idx, _ := range data {}, но так понятнее
 			_, err := br.Exec()
 			if err != nil {
 				if isUniqueViolation(err) {
@@ -169,4 +169,32 @@ func (r *Repository) InsertURLsBatch(ctx context.Context, data []repository.Data
 		return fmt.Errorf("batch insert failed in InsertURLsBatch: %w", err)
 	}
 	return nil
+}
+
+// GetURLsByUser возвращает все URL, созданные определенным пользователем
+func (r *Repository) GetURLsByUser(ctx context.Context, userID string) ([]repository.Data, error) {
+	query := "SELECT id, short_url, original_url, user_id FROM urls WHERE user_id = $1"
+	data := make([]repository.Data, 0)
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return data, nil
+		}
+		return data, fmt.Errorf("failed to query URLs by user in GetURLsByUser: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id, shortURL, originalURL, uid string
+		if err := rows.Scan(&id, &shortURL, &originalURL, &uid); err != nil {
+			return data, fmt.Errorf("failed to scan row in GetURLsByUser: %w", err)
+		}
+		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL, UserID: uid})
+	}
+
+	if err := rows.Err(); err != nil {
+		return data, fmt.Errorf("rows iteration error in GetURLsByUser: %w", err)
+	}
+
+	return data, nil
 }
