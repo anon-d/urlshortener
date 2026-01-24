@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -11,8 +13,12 @@ import (
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/middleware"
-	"github.com/anon-d/urlshortener/internal/model"
-	service "github.com/anon-d/urlshortener/internal/service/url"
+	"github.com/anon-d/urlshortener/internal/repository"
+	"github.com/anon-d/urlshortener/internal/repository/cache"
+	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
+	"github.com/anon-d/urlshortener/internal/repository/local"
+	"github.com/anon-d/urlshortener/internal/service"
+	serviceCache "github.com/anon-d/urlshortener/internal/service/cache"
 )
 
 type App struct {
@@ -25,19 +31,48 @@ func New() (*App, error) {
 
 	cfg := config.NewServerConfig()
 
-	logger, err := logger.New()
+	log, err := logger.New()
 	if err != nil {
-		return &App{}, err
+		return &App{}, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	fileSrv := model.NewFileStore(cfg.File, logger)
-	store, err := model.NewStore(fileSrv, logger)
-	if err != nil {
-		return &App{}, err
+	// Initialize local storage
+	localStorage := local.New(cfg.File, log)
+
+	// Initialize cache
+	cacheStorage := cache.New(nil, localStorage)
+	cacheService := serviceCache.New(cacheStorage)
+
+	// Initialize storage (database or local file)
+	var storage repository.Storage
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	if cfg.DSN != "" {
+		db, err := postgres.NewRepository(ctx, cfg.DSN, log)
+		if err != nil {
+			log.Warnw("Failed to connect to database, using file storage", "error", err)
+		} else if err := db.Ping(ctx); err != nil {
+			log.Warnw("Failed to ping database, using file storage", "error", err)
+		} else {
+			storage = repository.NewDBAdapter(db)
+		}
 	}
 
-	urlService := service.NewURLService(store, logger)
-	urlHandler := handler.NewURLHandler(urlService, cfg.AddrURL, logger)
+	// Fallback to local file storage
+	if storage == nil {
+		storage = repository.NewLocalAdapter(localStorage)
+	}
+
+	// Load data into cache from storage
+	if cacheData, err := storage.Select(ctx); err == nil {
+		for _, item := range cacheData {
+			cacheStorage.Set(item.ID, item.OriginalURL)
+		}
+	}
+
+	svc := service.New(cacheService, storage, log)
+	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log)
 
 	// init Gin and http
 	if cfg.Env == "release" {
@@ -66,7 +101,7 @@ func New() (*App, error) {
 	})
 
 	// middleware
-	router.Use(middleware.GlobalMiddleware(logger)...)
+	router.Use(middleware.GlobalMiddleware(log)...)
 
 	router.HandleMethodNotAllowed = true
 
@@ -91,6 +126,8 @@ func (a *App) SetupRoutes() {
 	a.router.POST("/", a.urlHandler.PostURL)
 	a.router.GET("/:id", a.urlHandler.GetURL)
 	a.router.POST("/api/shorten", a.urlHandler.Shorten)
+	a.router.GET("/ping", a.urlHandler.PingDB)
+	a.router.POST("/api/shorten/batch", a.urlHandler.BatchShorten)
 	a.router.NoMethod(a.urlHandler.NotAllowed)
 	a.router.NoRoute(a.urlHandler.NotFound)
 

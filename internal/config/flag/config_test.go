@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
 
@@ -10,6 +9,7 @@ const (
 	EnvVar     = "prod"
 	URL        = "http://default-host:8081"
 	File       = "data.json"
+	DSN        = "postgres://user:password@localhost:5432/dbname"
 )
 
 // TestNewServerConfig проводит табличные тесты для функции NewServerConfig.
@@ -30,25 +30,29 @@ func TestNewServerConfig(t *testing.T) {
 				"BASE_URL":          URL,
 				"ENV":               EnvVar,
 				"FILE_STORAGE_PATH": File,
+				"DATABASE_DSN":      DSN,
 			},
 			want: ServerConfig{
 				AddrServer: ServerAddr,
 				AddrURL:    URL,
 				Env:        EnvVar,
 				File:       File,
+				DSN:        DSN,
 			},
 		},
 		{
 			name: "Missing server address",
 			envVars: map[string]string{
-				"BASE_URL": URL,
-				"ENV":      EnvVar,
+				"BASE_URL":     URL,
+				"ENV":          EnvVar,
+				"DATABASE_DSN": DSN,
 			},
 			want: ServerConfig{
 				AddrServer: ":8080",
 				AddrURL:    URL,
 				Env:        EnvVar,
 				File:       File,
+				DSN:        DSN,
 			},
 		},
 		{
@@ -59,6 +63,7 @@ func TestNewServerConfig(t *testing.T) {
 				AddrURL:    "http://localhost:8080",
 				Env:        "dev",
 				File:       "data.json",
+				DSN:        "postgres://user:password@localhost:5432/dbname",
 			},
 		},
 		// по сути... тоже самое что и 3 тест,
@@ -78,26 +83,9 @@ func TestNewServerConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			originalEnv := make(map[string]string)
-			envKeys := []string{"SERVER_ADDRESS", "BASE_URL", "ENV", "FILE"}
-			for _, key := range envKeys {
-				originalEnv[key] = os.Getenv(key)
-				os.Unsetenv(key)
-			}
-
-			defer func() {
-				for key, val := range originalEnv {
-					if val != "" {
-						os.Setenv(key, val)
-					} else {
-						os.Unsetenv(key)
-					}
-				}
-			}()
-
-			for key, val := range tt.envVars {
-				os.Setenv(key, val)
-			}
+		for key, val := range tt.envVars {
+			t.Setenv(key, val)
+		}
 
 			got := NewServerConfig()
 

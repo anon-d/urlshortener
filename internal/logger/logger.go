@@ -6,16 +6,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type Logger struct {
-	ZLog *zap.SugaredLogger
-}
-
-func New() (*Logger, error) {
+func New() (*zap.SugaredLogger, error) {
 	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Printf("Init logger: error %v", err)
-		return &Logger{}, err
+		return nil, err
 	}
 	sugar := logger.Sugar()
-	return &Logger{ZLog: sugar}, nil
+	return sugar, nil
 }
