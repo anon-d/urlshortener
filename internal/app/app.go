@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -194,6 +195,6 @@ func (a *App) Shutdown(ctx context.Context) {
 		a.deleteWorker.Stop()
 	}
 	if err := a.server.Shutdown(ctx); err != nil {
-		// Логирование ошибки
+		os.Exit(1)
 	}
 }
