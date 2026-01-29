@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/anon-d/urlshortener/internal/repository"
+	"github.com/anon-d/urlshortener/internal/worker"
 	"github.com/anon-d/urlshortener/migrations"
 )
 
@@ -101,7 +102,7 @@ func isUniqueViolation(err error) bool {
 }
 
 func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
-	query := "SELECT id, short_url, original_url, COALESCE(user_id, '') FROM urls"
+	query := "SELECT id, short_url, original_url, COALESCE(user_id, ''), COALESCE(is_deleted, false) FROM urls"
 	data := make([]repository.Data, 0)
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -115,10 +116,11 @@ func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 
 	for rows.Next() {
 		var id, shortURL, originalURL, userID string
-		if err := rows.Scan(&id, &shortURL, &originalURL, &userID); err != nil {
+		var isDeleted bool
+		if err := rows.Scan(&id, &shortURL, &originalURL, &userID, &isDeleted); err != nil {
 			return data, fmt.Errorf("failed to scan row in GetURLs: %w", err)
 		}
-		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL, UserID: userID})
+		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL, UserID: userID, IsDeleted: isDeleted})
 	}
 
 	if err := rows.Err(); err != nil {
@@ -173,7 +175,7 @@ func (r *Repository) InsertURLsBatch(ctx context.Context, data []repository.Data
 
 // GetURLsByUser возвращает все URL, созданные определенным пользователем
 func (r *Repository) GetURLsByUser(ctx context.Context, userID string) ([]repository.Data, error) {
-	query := "SELECT id, short_url, original_url, user_id FROM urls WHERE user_id = $1"
+	query := "SELECT id, short_url, original_url, user_id, COALESCE(is_deleted, false) FROM urls WHERE user_id = $1"
 	data := make([]repository.Data, 0)
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -186,14 +188,67 @@ func (r *Repository) GetURLsByUser(ctx context.Context, userID string) ([]reposi
 
 	for rows.Next() {
 		var id, shortURL, originalURL, uid string
-		if err := rows.Scan(&id, &shortURL, &originalURL, &uid); err != nil {
+		var isDeleted bool
+		if err := rows.Scan(&id, &shortURL, &originalURL, &uid, &isDeleted); err != nil {
 			return data, fmt.Errorf("failed to scan row in GetURLsByUser: %w", err)
 		}
-		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL, UserID: uid})
+		data = append(data, repository.Data{ID: id, ShortURL: shortURL, OriginalURL: originalURL, UserID: uid, IsDeleted: isDeleted})
 	}
 
 	if err := rows.Err(); err != nil {
 		return data, fmt.Errorf("rows iteration error in GetURLsByUser: %w", err)
+	}
+
+	return data, nil
+}
+
+// BatchMarkAsDeleted помечает URLs как удаленные (batch update)
+func (r *Repository) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
+	if len(requests) == 0 {
+		return nil
+	}
+
+	urlsByUser := make(map[string][]string)
+	for _, req := range requests {
+		urlsByUser[req.UserID] = append(urlsByUser[req.UserID], req.ShortURL)
+	}
+
+	for userID, urls := range urlsByUser {
+		query := `
+			UPDATE urls
+			SET is_deleted = true
+			WHERE user_id = $1 AND short_url = ANY($2)
+		`
+		_, err := r.db.ExecContext(ctx, query, userID, urls)
+		if err != nil {
+			return fmt.Errorf("failed to batch mark as deleted for user %s: %w", userID, err)
+		}
+	}
+
+	return nil
+}
+
+// GetURLByShortURL получает URL по короткой ссылке
+func (r *Repository) GetURLByShortURL(ctx context.Context, shortURL string) (repository.Data, error) {
+	query := "SELECT id, short_url, original_url, COALESCE(user_id, ''), COALESCE(is_deleted, false) FROM urls WHERE short_url = $1"
+	var data repository.Data
+	var id, short, original, userID string
+	var isDeleted bool
+
+	err := r.db.QueryRowContext(ctx, query, shortURL).Scan(&id, &short, &original, &userID, &isDeleted)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return data, repository.ErrNotFound
+		}
+		return data, fmt.Errorf("failed to get URL by short URL: %w", err)
+	}
+
+	data = repository.Data{
+		ID:          id,
+		ShortURL:    short,
+		OriginalURL: original,
+		UserID:      userID,
+		IsDeleted:   isDeleted,
 	}
 
 	return data, nil

@@ -96,6 +96,33 @@ func (s *Service) GetURLsByUser(ctx context.Context, userID string) ([]model.Dat
 	return s.Storage.GetURLsByUser(ctx, userID)
 }
 
+// GetURLByShortURL получает полные данные URL по короткой ссылке
+func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
+	// Сначала проверяем кэш
+	originURL, exists := s.Cache.Get(shortURL)
+	if exists {
+		// Если есть в кэше, проверяем в storage для is_deleted
+		if s.Storage != nil {
+			data, err := s.Storage.GetURLByShortURL(ctx, shortURL)
+			if err == nil {
+				return data, nil
+			}
+		}
+		// Если storage недоступен, возвращаем из кэша
+		return model.Data{
+			ShortURL:    shortURL,
+			OriginalURL: originURL.(string),
+		}, nil
+	}
+	
+	// Если нет в кэше, проверяем storage
+	if s.Storage != nil {
+		return s.Storage.GetURLByShortURL(ctx, shortURL)
+	}
+	
+	return model.Data{}, errors.New("URL not found")
+}
+
 func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string) (map[string]string, error) {
 	// Получаем user_id из контекста
 	userID := ""

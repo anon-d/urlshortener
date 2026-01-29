@@ -9,4 +9,5 @@ type Data struct {
 	OriginalURL string
 	ShortURL    string
 	UserID      string
+	IsDeleted   bool
 }

@@ -19,12 +19,14 @@ import (
 	"github.com/anon-d/urlshortener/internal/repository/local"
 	"github.com/anon-d/urlshortener/internal/service"
 	serviceCache "github.com/anon-d/urlshortener/internal/service/cache"
+	"github.com/anon-d/urlshortener/internal/worker"
 )
 
 type App struct {
-	server     *http.Server
-	router     *gin.Engine
-	urlHandler *handler.URLHandler
+	server       *http.Server
+	router       *gin.Engine
+	urlHandler   *handler.URLHandler
+	deleteWorker *worker.DeleteWorker
 }
 
 func New() (*App, error) {
@@ -72,7 +74,29 @@ func New() (*App, error) {
 	}
 
 	svc := service.New(cacheService, storage, log)
-	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log)
+
+	// worker
+	deleteWorkerAdapter := &deleteStorageAdapter{storage: storage}
+	deleteWorker := worker.NewDeleteWorker(
+		deleteWorkerAdapter,
+		100,                  // buffer size
+		500*time.Millisecond, // flush interval
+		log,
+	)
+
+	// каналы для fan-in
+	deleteChan1 := make(chan handler.DeleteRequest, 50)
+	deleteChan2 := make(chan handler.DeleteRequest, 50)
+
+	// handler.DeleteRequest -> worker.DeleteRequest
+	workerChan1 := convertDeleteChannel(deleteChan1)
+	workerChan2 := convertDeleteChannel(deleteChan2)
+
+	deleteWorker.AddChannel(workerChan1)
+	deleteWorker.AddChannel(workerChan2)
+	deleteWorker.Start()
+
+	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChan1)
 
 	// init Gin and http
 	if cfg.Env == "release" {
@@ -112,10 +136,35 @@ func New() (*App, error) {
 	}
 
 	return &App{
-		server:     httpServer,
-		router:     router,
-		urlHandler: urlHandler,
+		server:       httpServer,
+		router:       router,
+		urlHandler:   urlHandler,
+		deleteWorker: deleteWorker,
 	}, nil
+}
+
+// deleteStorageAdapter адаптер для работы с Storage через интерфейс DeleteStorage
+type deleteStorageAdapter struct {
+	storage repository.Storage
+}
+
+func (d *deleteStorageAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
+	return d.storage.BatchMarkAsDeleted(ctx, requests)
+}
+
+// handler.DeleteRequest -> worker.DeleteRequest
+func convertDeleteChannel(in <-chan handler.DeleteRequest) <-chan worker.DeleteRequest {
+	out := make(chan worker.DeleteRequest)
+	go func() {
+		for req := range in {
+			out <- worker.DeleteRequest{
+				UserID:   req.UserID,
+				ShortURL: req.ShortURL,
+			}
+		}
+		close(out)
+	}()
+	return out
 }
 
 func (a *App) SetupRoutes() {
@@ -130,6 +179,7 @@ func (a *App) SetupRoutes() {
 	a.router.GET("/ping", a.urlHandler.PingDB)
 	a.router.POST("/api/shorten/batch", a.urlHandler.BatchShorten)
 	a.router.GET("/api/user/urls", a.urlHandler.GetUserURLs)
+	a.router.DELETE("/api/user/urls", a.urlHandler.DeleteURLs)
 	a.router.NoMethod(a.urlHandler.NotAllowed)
 	a.router.NoRoute(a.urlHandler.NotFound)
 
@@ -140,4 +190,10 @@ func (a *App) Run() error {
 }
 
 func (a *App) Shutdown(ctx context.Context) {
+	if a.deleteWorker != nil {
+		a.deleteWorker.Stop()
+	}
+	if err := a.server.Shutdown(ctx); err != nil {
+		// Логирование ошибки
+	}
 }
