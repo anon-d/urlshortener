@@ -20,7 +20,9 @@ func main() {
 
 	go func() {
 		if err := application.Run(); err != nil {
-			log.Fatalf("Error running application.\n%s", err.Error())
+			if err.Error() != "http: Server closed" {
+				log.Printf("Error running application: %s", err.Error())
+			}
 		}
 	}()
 
@@ -40,7 +42,6 @@ func main() {
 	case <-shut:
 		log.Print("Shutdown process is completed!")
 	case <-ctx.Done():
-		log.Print("Shutdown process is failed! Force shutdown")
-		os.Exit(1)
+		log.Print("Shutdown process timeout - exiting anyway")
 	}
 }
