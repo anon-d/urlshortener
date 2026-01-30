@@ -90,7 +90,9 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusBadRequest, "empty request body")
 		return
 	}
-	id, err := u.Service.ShortenURL(c, body)
+
+	userID, _ := getUserID(c)
+	id, err := u.Service.ShortenURL(c, body, userID)
 	if err != nil {
 		var conflictErr *service.ConflictError
 		if errors.As(err, &conflictErr) {
@@ -155,8 +157,10 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
+
+	userID, _ := getUserID(c)
 	targetURL := request.URL
-	id, err := u.Service.ShortenURL(c, []byte(targetURL))
+	id, err := u.Service.ShortenURL(c, []byte(targetURL), userID)
 
 	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
 	if joinErr != nil {
@@ -199,11 +203,13 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 		return
 	}
 
+	userID, _ := getUserID(c)
+
 	batchURLsMap := make(map[string]string, len(request))
 	for _, item := range request {
 		batchURLsMap[item.CorrelationID] = item.OriginalURL
 	}
-	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap)
+	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap, userID)
 	if err != nil {
 		u.logger.Errorw("failed to shorten batch URLs", "error", err)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -248,19 +254,12 @@ func (u *URLHandler) PingDB(c *gin.Context) {
 
 // GetUserURLs возвращает все URL, созданные пользователем
 func (u *URLHandler) GetUserURLs(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+	userID, ok := requireUserID(c)
+	if !ok {
 		return
 	}
 
-	userIDStr, ok := userID.(string)
-	if !ok || userIDStr == "" {
-		c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
-		return
-	}
-
-	urls, err := u.Service.GetURLsByUser(c, userIDStr)
+	urls, err := u.Service.GetURLsByUser(c, userID)
 	if err != nil {
 		u.logger.Errorw("failed to get user URLs", "error", err)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -291,16 +290,8 @@ func (u *URLHandler) GetUserURLs(c *gin.Context) {
 
 // DeleteURLs принимает запрос на асинхронное удаление URL
 func (u *URLHandler) DeleteURLs(c *gin.Context) {
-	// Получаем user_id из контекста
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
-		return
-	}
-
-	userIDStr, ok := userID.(string)
-	if !ok || userIDStr == "" {
-		c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+	userID, ok := requireUserID(c)
+	if !ok {
 		return
 	}
 
@@ -318,17 +309,13 @@ func (u *URLHandler) DeleteURLs(c *gin.Context) {
 	}
 
 	// Отправляем запросы на удаление в канал для асинхронной обработки
+	// Блокирующая отправка
 	for _, shortURL := range shortURLs {
 		req := DeleteRequest{
-			UserID:   userIDStr,
+			UserID:   userID,
 			ShortURL: shortURL,
 		}
-
-		select {
-		case u.DeleteChannel <- req:
-		default:
-			u.logger.Warnw("delete channel is full, skipping URL", "short_url", shortURL)
-		}
+		u.DeleteChannel <- req
 	}
 
 	c.Status(http.StatusAccepted)

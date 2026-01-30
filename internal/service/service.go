@@ -43,14 +43,8 @@ func New(cache CacheService, storage repository.Storage, logger *zap.SugaredLogg
 	}
 }
 
-func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error) {
+func (s *Service) ShortenURL(ctx context.Context, longURL []byte, userID string) ([]byte, error) {
 	urlID := generateID()
-	
-	// Получаем user_id из контекста
-	userID := ""
-	if uid, ok := ctx.Value("user_id").(string); ok {
-		userID = uid
-	}
 	
 	data := model.Data{
 		ID:          urlID,
@@ -123,13 +117,7 @@ func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.
 	return model.Data{}, errors.New("URL not found")
 }
 
-func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string) (map[string]string, error) {
-	// Получаем user_id из контекста
-	userID := ""
-	if uid, ok := ctx.Value("user_id").(string); ok {
-		userID = uid
-	}
-	
+func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string, userID string) (map[string]string, error) {
 	dataMapResult := make(map[string]string, len(dataMap))
 	dataList := make([]model.Data, 0, len(dataMap))
 	for key, value := range dataMap {

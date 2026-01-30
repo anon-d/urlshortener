@@ -84,19 +84,17 @@ func New() (*App, error) {
 		log,
 	)
 
-	// каналы для fan-in
-	deleteChan1 := make(chan handler.DeleteRequest, 50)
-	deleteChan2 := make(chan handler.DeleteRequest, 50)
-
-	// handler.DeleteRequest -> worker.DeleteRequest
-	workerChan1 := convertDeleteChannel(deleteChan1)
-	workerChan2 := convertDeleteChannel(deleteChan2)
-
-	deleteWorker.AddChannel(workerChan1)
-	deleteWorker.AddChannel(workerChan2)
+	// Создаем динамическое количество каналов на основе конфига
+	deleteChannels := make([]chan handler.DeleteRequest, cfg.DeleteWorkerCount)
+	for i := 0; i < cfg.DeleteWorkerCount; i++ {
+		deleteChannels[i] = make(chan handler.DeleteRequest, cfg.DeleteChannelSize)
+		workerChan := convertDeleteChannel(deleteChannels[i])
+		deleteWorker.AddChannel(workerChan)
+	}
 	deleteWorker.Start()
 
-	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChan1)
+	// канал для handler
+	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChannels[0])
 
 	// init Gin and http
 	if cfg.Env == "release" {
