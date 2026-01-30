@@ -2,6 +2,10 @@ package middleware
 
 import (
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
 	"strings"
 	"time"
@@ -20,6 +24,7 @@ func GlobalMiddleware(logger *zap.SugaredLogger) []gin.HandlerFunc {
 	}
 }
 
+// отлов паники
 func PanicMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -35,6 +40,7 @@ func PanicMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
+// служебки
 func RequestMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -88,6 +94,7 @@ func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 	return g.ResponseWriter.Write(b)
 }
 
+// для сжатия
 func CompressionResponse() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		acceptEncoding := c.Request.Header.Get("Accept-Encoding")
@@ -113,6 +120,7 @@ func CompressionResponse() gin.HandlerFunc {
 	}
 }
 
+// распаковка
 func DecompressionRequest() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		encodingType := c.Request.Header.Get("Content-Encoding")
@@ -132,4 +140,72 @@ func DecompressionRequest() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+const (
+	UserIDCookieName = "user_id" // куки
+	UserIDContextKey = "user_id" // ключ контекста
+)
+
+// AuthMiddleware проверяет наличие подписанной куки с user_id.
+// Если куки нет или подпись недействительна, создается новый user_id и устанавливается подписанная кука.
+func AuthMiddleware(secretKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var userID string
+
+		// получаем, проверяем
+		cookie, err := c.Cookie(UserIDCookieName)
+		if err == nil && cookie != "" {
+			if validUserID, valid := validateSignedValue(cookie, secretKey); valid {
+				userID = validUserID
+			}
+		}
+
+		// если нет, то генерим
+		if userID == "" {
+			userID = generateUserID()
+			signedValue := signValue(userID, secretKey)
+			c.SetCookie(UserIDCookieName, signedValue, 3600*24*365, "/", "", false, true)
+		}
+		// в контекст
+		c.Set(UserIDContextKey, userID)
+		c.Next()
+	}
+}
+
+// generateUserID генерирует уникальный идентификатор пользователя
+func generateUserID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// signValue подписывает значение с помощью HMAC-SHA256
+func signValue(value string, secretKey string) string {
+	h := hmac.New(sha256.New, []byte(secretKey))
+	h.Write([]byte(value))
+	signature := base64.URLEncoding.EncodeToString(h.Sum(nil))
+	return value + "." + signature
+}
+
+// validateSignedValue проверяет подпись и возвращает оригинальное значение
+func validateSignedValue(signedValue string, secretKey string) (string, bool) {
+	parts := strings.Split(signedValue, ".")
+	if len(parts) != 2 {
+		return "", false
+	}
+
+	value := parts[0]
+	providedSignature := parts[1]
+
+	// Вычисляем ожидаемую подпись
+	h := hmac.New(sha256.New, []byte(secretKey))
+	h.Write([]byte(value))
+	expectedSignature := base64.URLEncoding.EncodeToString(h.Sum(nil))
+
+	if hmac.Equal([]byte(expectedSignature), []byte(providedSignature)) {
+		return value, true
+	}
+
+	return "", false
 }

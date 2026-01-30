@@ -43,12 +43,14 @@ func New(cache CacheService, storage repository.Storage, logger *zap.SugaredLogg
 	}
 }
 
-func (s *Service) ShortenURL(ctx context.Context, longURL []byte) ([]byte, error) {
+func (s *Service) ShortenURL(ctx context.Context, longURL []byte, userID string) ([]byte, error) {
 	urlID := generateID()
+	
 	data := model.Data{
 		ID:          urlID,
 		ShortURL:    urlID,
 		OriginalURL: string(longURL),
+		UserID:      userID,
 	}
 
 	s.Cache.Set(&data)
@@ -77,10 +79,53 @@ func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 	if !exists {
 		return "", errors.New("URL not found")
 	}
-	return originURL.(string), nil
+	originURLStr, ok := originURL.(string)
+	if !ok {
+		return "", errors.New("invalid URL data in cache")
+	}
+	return originURLStr, nil
 }
 
-func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string) (map[string]string, error) {
+// GetURLsByUser возвращает все URL, созданные пользователем
+func (s *Service) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	if s.Storage == nil {
+		return nil, errors.New("storage is not available")
+	}
+	return s.Storage.GetURLsByUser(ctx, userID)
+}
+
+// GetURLByShortURL получает полные данные URL по короткой ссылке
+func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
+	// Сначала проверяем кэш
+	originURL, exists := s.Cache.Get(shortURL)
+	if exists {
+		// Если есть в кэше, проверяем в storage для is_deleted
+		if s.Storage != nil {
+			data, err := s.Storage.GetURLByShortURL(ctx, shortURL)
+			if err == nil {
+				return data, nil
+			}
+		}
+		// Если storage недоступен, возвращаем из кэша
+		originURLStr, ok := originURL.(string)
+		if !ok {
+			return model.Data{}, errors.New("invalid URL data in cache")
+		}
+		return model.Data{
+			ShortURL:    shortURL,
+			OriginalURL: originURLStr,
+		}, nil
+	}
+	
+	// Если нет в кэше, проверяем storage
+	if s.Storage != nil {
+		return s.Storage.GetURLByShortURL(ctx, shortURL)
+	}
+	
+	return model.Data{}, errors.New("URL not found")
+}
+
+func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string, userID string) (map[string]string, error) {
 	dataMapResult := make(map[string]string, len(dataMap))
 	dataList := make([]model.Data, 0, len(dataMap))
 	for key, value := range dataMap {
@@ -89,6 +134,7 @@ func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string
 			ID:          urlID,
 			ShortURL:    urlID,
 			OriginalURL: value,
+			UserID:      userID,
 		}
 		s.Cache.Set(&data)
 		dataList = append(dataList, data)

@@ -29,17 +29,30 @@ type ItemBatchResponse struct {
 	ShortURL      string `json:"short_url"`
 }
 
-type URLHandler struct {
-	Service *service.Service
-	URLAddr string
-	logger  *zap.SugaredLogger
+type UserURLResponse struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }
 
-func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger) *URLHandler {
+type URLHandler struct {
+	Service       *service.Service
+	URLAddr       string
+	logger        *zap.SugaredLogger
+	DeleteChannel chan<- DeleteRequest
+}
+
+// DeleteRequest представляет запрос на удаление URL
+type DeleteRequest struct {
+	UserID   string
+	ShortURL string
+}
+
+func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger, deleteChan chan<- DeleteRequest) *URLHandler {
 	return &URLHandler{
-		Service: service,
-		URLAddr: urlAddr,
-		logger:  logger,
+		Service:       service,
+		URLAddr:       urlAddr,
+		logger:        logger,
+		DeleteChannel: deleteChan,
 	}
 }
 
@@ -77,7 +90,9 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusBadRequest, "empty request body")
 		return
 	}
-	id, err := u.Service.ShortenURL(c, body)
+
+	userID, _ := getUserID(c)
+	id, err := u.Service.ShortenURL(c, body, userID)
 	if err != nil {
 		var conflictErr *service.ConflictError
 		if errors.As(err, &conflictErr) {
@@ -108,22 +123,29 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 // GetURL принимает запрос на получение оригинальной ссылки по корневому пути,
 // shortURL берется из параметра запроса (id).
 // Оригинальный URL возвращается в заголовке Location со статусом 307.
+// Если URL помечен как удаленный, возвращается 410 Gone.
 func (u *URLHandler) GetURL(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
 		c.String(http.StatusBadRequest, "missing id parameter")
 		return
 	}
-	urlLong, err := u.Service.GetURL(c, id)
+
+	// Получаем полные данные URL
+	data, err := u.Service.GetURLByShortURL(c, id)
 	if err != nil {
-		if errors.Is(err, errors.New("not found")) {
-			c.String(http.StatusNotFound, err.Error())
-			return
-		}
+		u.logger.Errorw("failed to get URL", "error", err, "short_url", id)
 		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
-	c.Redirect(http.StatusTemporaryRedirect, urlLong)
+
+	// Проверка на is_deleted
+	if data.IsDeleted {
+		c.String(http.StatusGone, http.StatusText(http.StatusGone))
+		return
+	}
+
+	c.Redirect(http.StatusTemporaryRedirect, data.OriginalURL)
 }
 
 // Shorten принимает запрос на создание короткой ссылки по пути "/api/shorten",
@@ -135,8 +157,10 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
+
+	userID, _ := getUserID(c)
 	targetURL := request.URL
-	id, err := u.Service.ShortenURL(c, []byte(targetURL))
+	id, err := u.Service.ShortenURL(c, []byte(targetURL), userID)
 
 	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
 	if joinErr != nil {
@@ -179,11 +203,13 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 		return
 	}
 
+	userID, _ := getUserID(c)
+
 	batchURLsMap := make(map[string]string, len(request))
 	for _, item := range request {
 		batchURLsMap[item.CorrelationID] = item.OriginalURL
 	}
-	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap)
+	batchURLsMap, err := u.Service.ShortenBatchURL(c, batchURLsMap, userID)
 	if err != nil {
 		u.logger.Errorw("failed to shorten batch URLs", "error", err)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -224,4 +250,73 @@ func (u *URLHandler) PingDB(c *gin.Context) {
 		return
 	}
 	c.String(http.StatusOK, http.StatusText(http.StatusOK))
+}
+
+// GetUserURLs возвращает все URL, созданные пользователем
+func (u *URLHandler) GetUserURLs(c *gin.Context) {
+	userID, ok := requireUserID(c)
+	if !ok {
+		return
+	}
+
+	urls, err := u.Service.GetURLsByUser(c, userID)
+	if err != nil {
+		u.logger.Errorw("failed to get user URLs", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		return
+	}
+
+	if len(urls) == 0 {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
+	response := make([]UserURLResponse, 0, len(urls))
+	for _, item := range urls {
+		shortURL, err := url.JoinPath(u.URLAddr, item.ShortURL)
+		if err != nil {
+			u.logger.Errorw("failed to join URL path", "error", err)
+			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			return
+		}
+		response = append(response, UserURLResponse{
+			ShortURL:    shortURL,
+			OriginalURL: item.OriginalURL,
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// DeleteURLs принимает запрос на асинхронное удаление URL
+func (u *URLHandler) DeleteURLs(c *gin.Context) {
+	userID, ok := requireUserID(c)
+	if !ok {
+		return
+	}
+
+	// Парсим массив shortURL из тела запроса
+	var shortURLs []string
+	if err := c.ShouldBindJSON(&shortURLs); err != nil {
+		u.logger.Errorw("failed to parse delete request", "error", err)
+		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+		return
+	}
+
+	if len(shortURLs) == 0 {
+		c.String(http.StatusBadRequest, "empty URL list")
+		return
+	}
+
+	// Отправляем запросы на удаление в канал для асинхронной обработки
+	// Блокирующая отправка
+	for _, shortURL := range shortURLs {
+		req := DeleteRequest{
+			UserID:   userID,
+			ShortURL: shortURL,
+		}
+		u.DeleteChannel <- req
+	}
+
+	c.Status(http.StatusAccepted)
 }

@@ -3,24 +3,31 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 	"sync"
 )
 
 type ServerConfig struct {
-	AddrServer string `env:"SERVER_ADDRESS"`
-	AddrURL    string `env:"BASE_URL"`
-	Env        string `env:"ENV"`
-	File       string `env:"FILE_STORAGE_PATH"`
-	DSN        string `env:"DATABASE_DSN"`
+	AddrServer         string `env:"SERVER_ADDRESS"`
+	AddrURL            string `env:"BASE_URL"`
+	Env                string `env:"ENV"`
+	File               string `env:"FILE_STORAGE_PATH"`
+	DSN                string `env:"DATABASE_DSN"`
+	DeleteWorkerCount  int    `env:"DELETE_WORKER_COUNT"`
+	DeleteChannelSize  int    `env:"DELETE_CHANNEL_SIZE"`
+	SecretKey          string `env:"SECRET_KEY"`
 }
 
 var (
-	addrServer *string
-	addrURL    *string
-	envValue   *string
-	fileValue  *string
-	dsnValue   *string
-	flagsOnce  sync.Once
+	addrServer         *string
+	addrURL            *string
+	envValue           *string
+	fileValue          *string
+	dsnValue           *string
+	deleteWorkerCount  *int
+	deleteChannelSize  *int
+	secretKey          *string
+	flagsOnce          sync.Once
 )
 
 func initFlags() {
@@ -29,6 +36,9 @@ func initFlags() {
 	envValue = flag.String("e", "dev", "environment")
 	fileValue = flag.String("f", "data.json", "file to store data")
 	dsnValue = flag.String("d", "", "database DSN")
+	deleteWorkerCount = flag.Int("w", 2, "number of delete worker channels")
+	deleteChannelSize = flag.Int("c", 1000, "size of each delete channel buffer")
+	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
 }
 
 func NewServerConfig() *ServerConfig {
@@ -70,5 +80,35 @@ func NewServerConfig() *ServerConfig {
 		cfg.DSN = *dsnValue
 	}
 
+	if envWorkerCount, ok := os.LookupEnv("DELETE_WORKER_COUNT"); ok {
+		if count, err := parseIntFromEnv(envWorkerCount); err == nil {
+			cfg.DeleteWorkerCount = count
+		} else {
+			cfg.DeleteWorkerCount = *deleteWorkerCount
+		}
+	} else {
+		cfg.DeleteWorkerCount = *deleteWorkerCount
+	}
+
+	if envChannelSize, ok := os.LookupEnv("DELETE_CHANNEL_SIZE"); ok {
+		if size, err := parseIntFromEnv(envChannelSize); err == nil {
+			cfg.DeleteChannelSize = size
+		} else {
+			cfg.DeleteChannelSize = *deleteChannelSize
+		}
+	} else {
+		cfg.DeleteChannelSize = *deleteChannelSize
+	}
+
+	if envSecretKey, ok := os.LookupEnv("SECRET_KEY"); ok {
+		cfg.SecretKey = envSecretKey
+	} else {
+		cfg.SecretKey = *secretKey
+	}
+
 	return cfg
+}
+
+func parseIntFromEnv(s string) (int, error) {
+	return strconv.Atoi(s)
 }

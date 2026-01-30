@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/anon-d/urlshortener/internal/model"
+	"github.com/anon-d/urlshortener/internal/worker"
 )
 
 // Storage единый интерфейс для работы с хранилищем (БД или локальное)
@@ -12,6 +13,9 @@ type Storage interface {
 	InsertBatch(ctx context.Context, dataList []model.Data) error
 	Select(ctx context.Context) ([]model.Data, error)
 	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
+	GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error)
+	GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error)
+	BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error
 	Ping(ctx context.Context) error
 }
 
@@ -25,7 +29,7 @@ func NewDBAdapter(db DB) *DBAdapter {
 }
 
 func (d *DBAdapter) Insert(ctx context.Context, data model.Data) error {
-	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL)
+	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL, data.UserID)
 }
 
 func (d *DBAdapter) InsertBatch(ctx context.Context, dataList []model.Data) error {
@@ -35,6 +39,7 @@ func (d *DBAdapter) InsertBatch(ctx context.Context, dataList []model.Data) erro
 			ID:          item.ID,
 			ShortURL:    item.ShortURL,
 			OriginalURL: item.OriginalURL,
+			UserID:      item.UserID,
 		}
 	}
 	return d.db.InsertURLsBatch(ctx, data)
@@ -51,6 +56,8 @@ func (d *DBAdapter) Select(ctx context.Context) ([]model.Data, error) {
 			ID:          item.ID,
 			ShortURL:    item.ShortURL,
 			OriginalURL: item.OriginalURL,
+			UserID:      item.UserID,
+			IsDeleted:   item.IsDeleted,
 		}
 	}
 	return result, nil
@@ -58,6 +65,42 @@ func (d *DBAdapter) Select(ctx context.Context) ([]model.Data, error) {
 
 func (d *DBAdapter) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
 	return d.db.GetURLByOriginal(ctx, originalURL)
+}
+
+func (d *DBAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	data, err := d.db.GetURLsByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]model.Data, len(data))
+	for i, item := range data {
+		result[i] = model.Data{
+			ID:          item.ID,
+			ShortURL:    item.ShortURL,
+			OriginalURL: item.OriginalURL,
+			UserID:      item.UserID,
+			IsDeleted:   item.IsDeleted,
+		}
+	}
+	return result, nil
+}
+
+func (d *DBAdapter) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
+	data, err := d.db.GetURLByShortURL(ctx, shortURL)
+	if err != nil {
+		return model.Data{}, err
+	}
+	return model.Data{
+		ID:          data.ID,
+		ShortURL:    data.ShortURL,
+		OriginalURL: data.OriginalURL,
+		UserID:      data.UserID,
+		IsDeleted:   data.IsDeleted,
+	}, nil
+}
+
+func (d *DBAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
+	return d.db.BatchMarkAsDeleted(ctx, requests)
 }
 
 func (d *DBAdapter) Ping(ctx context.Context) error {
@@ -104,15 +147,68 @@ func (l *LocalAdapter) GetURLByOriginal(ctx context.Context, originalURL string)
 	return "", ErrNotFound
 }
 
+func (l *LocalAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
+	data, err := l.local.Load()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]model.Data, 0)
+	for _, item := range data {
+		if item.UserID == userID {
+			result = append(result, item)
+		}
+	}
+	return result, nil
+}
+
+func (l *LocalAdapter) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
+	data, err := l.local.Load()
+	if err != nil {
+		return model.Data{}, err
+	}
+	for _, item := range data {
+		if item.ShortURL == shortURL {
+			return item, nil
+		}
+	}
+	return model.Data{}, ErrNotFound
+}
+
+func (l *LocalAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
+	// Для локального хранилища помечаем URL как удаленные
+	data, err := l.local.Load()
+	if err != nil {
+		return err
+	}
+
+	// Создаем мапу для быстрого поиска
+	deleteMap := make(map[string]string)
+	for _, req := range requests {
+		deleteMap[req.ShortURL] = req.UserID
+	}
+
+	// Обновляем флаг is_deleted
+	for i := range data {
+		if userID, exists := deleteMap[data[i].ShortURL]; exists && data[i].UserID == userID {
+			data[i].IsDeleted = true
+		}
+	}
+
+	return l.local.Save(data)
+}
+
 func (l *LocalAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
 type DB interface {
-	InsertURL(ctx context.Context, id, shortURL, originalURL string) error
+	InsertURL(ctx context.Context, id, shortURL, originalURL, userID string) error
 	InsertURLsBatch(ctx context.Context, data []Data) error
 	GetURLs(ctx context.Context) ([]Data, error)
 	GetURLByOriginal(ctx context.Context, originalURL string) (string, error)
+	GetURLsByUser(ctx context.Context, userID string) ([]Data, error)
+	GetURLByShortURL(ctx context.Context, shortURL string) (Data, error)
+	BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error
 	Ping(ctx context.Context) error
 }
 
