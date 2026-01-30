@@ -124,7 +124,7 @@ func New() (*App, error) {
 
 	// middleware
 	router.Use(middleware.GlobalMiddleware(log)...)
-	router.Use(middleware.AuthMiddleware())
+	router.Use(middleware.AuthMiddleware(cfg.SecretKey))
 
 	router.HandleMethodNotAllowed = true
 

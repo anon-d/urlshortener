@@ -37,7 +37,11 @@ func toFileData(cache map[string]any) []model.Data {
 	id := 1
 	data := make([]model.Data, 0, len(cache))
 	for shortURL, originalURL := range cache {
-		data = append(data, model.NewData(strconv.Itoa(id), shortURL, originalURL.(string)))
+		originalURLStr, ok := originalURL.(string)
+		if !ok {
+			continue
+		}
+		data = append(data, model.NewData(strconv.Itoa(id), shortURL, originalURLStr))
 		id++
 	}
 	return data

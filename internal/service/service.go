@@ -79,7 +79,11 @@ func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 	if !exists {
 		return "", errors.New("URL not found")
 	}
-	return originURL.(string), nil
+	originURLStr, ok := originURL.(string)
+	if !ok {
+		return "", errors.New("invalid URL data in cache")
+	}
+	return originURLStr, nil
 }
 
 // GetURLsByUser возвращает все URL, созданные пользователем
@@ -103,9 +107,13 @@ func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.
 			}
 		}
 		// Если storage недоступен, возвращаем из кэша
+		originURLStr, ok := originURL.(string)
+		if !ok {
+			return model.Data{}, errors.New("invalid URL data in cache")
+		}
 		return model.Data{
 			ShortURL:    shortURL,
-			OriginalURL: originURL.(string),
+			OriginalURL: originURLStr,
 		}, nil
 	}
 	

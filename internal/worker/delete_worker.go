@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -62,9 +63,12 @@ func (w *DeleteWorker) Start() {
 // fanIn объединяет несколько каналов в один
 func (w *DeleteWorker) fanIn(channels ...<-chan DeleteRequest) <-chan DeleteRequest {
 	out := make(chan DeleteRequest, w.bufferSize)
+	var wg sync.WaitGroup
 
 	for _, ch := range channels {
+		wg.Add(1)
 		go func(c <-chan DeleteRequest) {
+			defer wg.Done()
 			for {
 				select {
 				case <-w.ctx.Done():
@@ -82,6 +86,12 @@ func (w *DeleteWorker) fanIn(channels ...<-chan DeleteRequest) <-chan DeleteRequ
 			}
 		}(ch)
 	}
+
+	// Закрытие выходного канала после завершения всех входных
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
 
 	return out
 }

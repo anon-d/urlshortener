@@ -15,6 +15,7 @@ type ServerConfig struct {
 	DSN                string `env:"DATABASE_DSN"`
 	DeleteWorkerCount  int    `env:"DELETE_WORKER_COUNT"`
 	DeleteChannelSize  int    `env:"DELETE_CHANNEL_SIZE"`
+	SecretKey          string `env:"SECRET_KEY"`
 }
 
 var (
@@ -25,6 +26,7 @@ var (
 	dsnValue           *string
 	deleteWorkerCount  *int
 	deleteChannelSize  *int
+	secretKey          *string
 	flagsOnce          sync.Once
 )
 
@@ -36,6 +38,7 @@ func initFlags() {
 	dsnValue = flag.String("d", "", "database DSN")
 	deleteWorkerCount = flag.Int("w", 2, "number of delete worker channels")
 	deleteChannelSize = flag.Int("c", 1000, "size of each delete channel buffer")
+	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
 }
 
 func NewServerConfig() *ServerConfig {
@@ -95,6 +98,12 @@ func NewServerConfig() *ServerConfig {
 		}
 	} else {
 		cfg.DeleteChannelSize = *deleteChannelSize
+	}
+
+	if envSecretKey, ok := os.LookupEnv("SECRET_KEY"); ok {
+		cfg.SecretKey = envSecretKey
+	} else {
+		cfg.SecretKey = *secretKey
 	}
 
 	return cfg

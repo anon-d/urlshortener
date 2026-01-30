@@ -143,21 +143,20 @@ func DecompressionRequest() gin.HandlerFunc {
 }
 
 const (
-	UserIDCookieName = "user_id"                                  // куки
-	UserIDContextKey = "user_id"                                  // ключ контекста
-	secretKey        = "my-super-secret-key-change-in-production" // TOP SECRET
+	UserIDCookieName = "user_id" // куки
+	UserIDContextKey = "user_id" // ключ контекста
 )
 
 // AuthMiddleware проверяет наличие подписанной куки с user_id.
 // Если куки нет или подпись недействительна, создается новый user_id и устанавливается подписанная кука.
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(secretKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var userID string
 
 		// получаем, проверяем
 		cookie, err := c.Cookie(UserIDCookieName)
 		if err == nil && cookie != "" {
-			if validUserID, valid := validateSignedValue(cookie); valid {
+			if validUserID, valid := validateSignedValue(cookie, secretKey); valid {
 				userID = validUserID
 			}
 		}
@@ -165,7 +164,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// если нет, то генерим
 		if userID == "" {
 			userID = generateUserID()
-			signedValue := signValue(userID)
+			signedValue := signValue(userID, secretKey)
 			c.SetCookie(UserIDCookieName, signedValue, 3600*24*365, "/", "", false, true)
 		}
 		// в контекст
@@ -182,7 +181,7 @@ func generateUserID() string {
 }
 
 // signValue подписывает значение с помощью HMAC-SHA256
-func signValue(value string) string {
+func signValue(value string, secretKey string) string {
 	h := hmac.New(sha256.New, []byte(secretKey))
 	h.Write([]byte(value))
 	signature := base64.URLEncoding.EncodeToString(h.Sum(nil))
@@ -190,7 +189,7 @@ func signValue(value string) string {
 }
 
 // validateSignedValue проверяет подпись и возвращает оригинальное значение
-func validateSignedValue(signedValue string) (string, bool) {
+func validateSignedValue(signedValue string, secretKey string) (string, bool) {
 	parts := strings.Split(signedValue, ".")
 	if len(parts) != 2 {
 		return "", false
