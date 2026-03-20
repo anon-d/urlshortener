@@ -16,6 +16,8 @@ type ServerConfig struct {
 	DeleteWorkerCount  int    `env:"DELETE_WORKER_COUNT"`
 	DeleteChannelSize  int    `env:"DELETE_CHANNEL_SIZE"`
 	SecretKey          string `env:"SECRET_KEY"`
+	AuditFile          string `env:"AUDIT_FILE"`
+	AuditURL           string `env:"AUDIT_URL"`
 }
 
 var (
@@ -27,6 +29,8 @@ var (
 	deleteWorkerCount  *int
 	deleteChannelSize  *int
 	secretKey          *string
+	auditFile          *string
+	auditURL           *string
 	flagsOnce          sync.Once
 )
 
@@ -39,6 +43,8 @@ func initFlags() {
 	deleteWorkerCount = flag.Int("w", 2, "number of delete worker channels")
 	deleteChannelSize = flag.Int("c", 1000, "size of each delete channel buffer")
 	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
+	auditFile = flag.String("audit-file", "", "path to audit log file")
+	auditURL = flag.String("audit-url", "", "URL of remote audit server")
 }
 
 func NewServerConfig() *ServerConfig {
@@ -104,6 +110,18 @@ func NewServerConfig() *ServerConfig {
 		cfg.SecretKey = envSecretKey
 	} else {
 		cfg.SecretKey = *secretKey
+	}
+
+	if envAuditFile, ok := os.LookupEnv("AUDIT_FILE"); ok {
+		cfg.AuditFile = envAuditFile
+	} else {
+		cfg.AuditFile = *auditFile
+	}
+
+	if envAuditURL, ok := os.LookupEnv("AUDIT_URL"); ok {
+		cfg.AuditURL = envAuditURL
+	} else {
+		cfg.AuditURL = *auditURL
 	}
 
 	return cfg

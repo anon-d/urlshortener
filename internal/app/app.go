@@ -9,6 +9,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"github.com/anon-d/urlshortener/internal/audit"
 	config "github.com/anon-d/urlshortener/internal/config/flag"
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/logger"
@@ -93,8 +94,17 @@ func New() (*App, error) {
 	}
 	deleteWorker.Start()
 
+	// Настройка аудита
+	auditPublisher := audit.NewPublisher()
+	if cfg.AuditFile != "" {
+		auditPublisher.Subscribe(audit.NewFileObserver(cfg.AuditFile))
+	}
+	if cfg.AuditURL != "" {
+		auditPublisher.Subscribe(audit.NewHTTPObserver(cfg.AuditURL))
+	}
+
 	// канал для handler
-	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChannels[0])
+	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChannels[0], auditPublisher)
 
 	// init Gin and http
 	if cfg.Env == "release" {

@@ -127,7 +127,7 @@ func TestPostURL_Success(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -155,7 +155,7 @@ func TestPostURL_EmptyBody(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -176,7 +176,7 @@ func TestPostURL_DiskError(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: true}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -200,7 +200,7 @@ func TestPostURL_WithDB_Success(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -223,7 +223,7 @@ func TestPostURL_WithDB_Error(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: true}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestGetURL_Success(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -278,7 +278,7 @@ func TestGetURL_NotFound(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -300,7 +300,7 @@ func TestGetURL_EmptyID(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -322,7 +322,7 @@ func TestShorten_Success(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -357,7 +357,7 @@ func TestShorten_InvalidJSON(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -381,7 +381,7 @@ func TestShorten_MissingURL(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -406,7 +406,7 @@ func TestPingDB_Success(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -428,7 +428,7 @@ func TestPingDB_Error(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -451,7 +451,7 @@ func TestPingDB_DBNotConnected(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -474,7 +474,7 @@ func TestBatchShorten_Success(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -512,7 +512,7 @@ func TestBatchShorten_EmptyBatch(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -537,7 +537,7 @@ func TestBatchShorten_InvalidJSON(t *testing.T) {
 
 	svc := service.New(cache, nil, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -561,7 +561,7 @@ func TestBatchShorten_DBError(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -588,7 +588,7 @@ func TestGetUserURLs_Success(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -620,7 +620,7 @@ func TestGetUserURLs_NoUserID(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -643,7 +643,7 @@ func TestGetUserURLs_EmptyUserID(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: false}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -670,7 +670,7 @@ func TestGetUserURLs_NoContent(t *testing.T) {
 
 	svc := service.New(cache, emptyStorage, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -693,7 +693,7 @@ func TestGetUserURLs_StorageError(t *testing.T) {
 
 	svc := service.New(cache, &mockStorage{shouldFail: true}, testLogger)
 	deleteChan := make(chan DeleteRequest, 10)
-	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan)
+	handler := NewURLHandler(svc, "http://localhost:8080", testLogger, deleteChan, nil)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
