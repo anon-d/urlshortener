@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
+	"github.com/anon-d/urlshortener/internal/audit"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -55,6 +57,7 @@ type URLHandler struct {
 	URLAddr       string
 	logger        *zap.SugaredLogger
 	DeleteChannel chan<- DeleteRequest
+	audit         *audit.Publisher
 }
 
 // DeleteRequest представляет запрос на асинхронное удаление URL.
@@ -66,13 +69,14 @@ type DeleteRequest struct {
 
 // NewURLHandler создаёт новый экземпляр URLHandler.
 // Принимает сервис бизнес-логики, базовый адрес для формирования коротких ссылок,
-// логгер и канал для отправки запросов на удаление.
-func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger, deleteChan chan<- DeleteRequest) *URLHandler {
+// логгер, канал для отправки запросов на удаление и издателя аудита.
+func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger, deleteChan chan<- DeleteRequest, auditPublisher *audit.Publisher) *URLHandler {
 	return &URLHandler{
 		Service:       service,
 		URLAddr:       urlAddr,
 		logger:        logger,
 		DeleteChannel: deleteChan,
+		audit:         auditPublisher,
 	}
 }
 
@@ -140,6 +144,7 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
+	u.publishAudit("shorten", userID, string(body))
 	c.String(http.StatusCreated, shortURL)
 }
 
@@ -168,6 +173,8 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 		return
 	}
 
+	userID, _ := getUserID(c)
+	u.publishAudit("follow", userID, data.OriginalURL)
 	c.Redirect(http.StatusTemporaryRedirect, data.OriginalURL)
 }
 
@@ -207,6 +214,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 		return
 	}
 
+	u.publishAudit("shorten", userID, targetURL)
 	c.Writer.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL})
 }
@@ -344,4 +352,17 @@ func (u *URLHandler) DeleteURLs(c *gin.Context) {
 	}
 
 	c.Status(http.StatusAccepted)
+}
+
+// publishAudit отправляет событие аудита во все зарегистрированные приёмники.
+func (u *URLHandler) publishAudit(action, userID, originalURL string) {
+	if u.audit == nil {
+		return
+	}
+	u.audit.Publish(audit.AuditEvent{
+		Timestamp: time.Now().Unix(),
+		Action:    action,
+		UserID:    userID,
+		URL:       originalURL,
+	})
 }

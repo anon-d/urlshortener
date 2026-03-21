@@ -20,7 +20,7 @@ func BenchmarkPostURL(b *testing.B) {
 	cache := &mockCacheService{data: make(map[string]string)}
 	svc := service.New(cache, nil, logger)
 	deleteChan := make(chan DeleteRequest, 1000)
-	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan)
+	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan, nil)
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -36,7 +36,7 @@ func BenchmarkShorten(b *testing.B) {
 	cache := &mockCacheService{data: make(map[string]string)}
 	svc := service.New(cache, nil, logger)
 	deleteChan := make(chan DeleteRequest, 1000)
-	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan)
+	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan, nil)
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -57,7 +57,7 @@ func BenchmarkGetURL(b *testing.B) {
 	}
 	svc := service.New(cache, nil, logger)
 	deleteChan := make(chan DeleteRequest, 1000)
-	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan)
+	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan, nil)
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -74,7 +74,7 @@ func BenchmarkBatchShorten(b *testing.B) {
 	cache := &mockCacheService{data: make(map[string]string)}
 	svc := service.New(cache, &mockStorage{shouldFail: false}, logger)
 	deleteChan := make(chan DeleteRequest, 1000)
-	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan)
+	h := NewURLHandler(svc, "http://localhost:8080", logger, deleteChan, nil)
 
 	jsonBody := `[{"correlation_id":"1","original_url":"https://example1.com"},{"correlation_id":"2","original_url":"https://example2.com"},{"correlation_id":"3","original_url":"https://example3.com"}]`
 

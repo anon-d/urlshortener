@@ -64,7 +64,7 @@ func newTestHandler() *handler.URLHandler {
 	cache := &mockCacheServiceEx{data: make(map[string]string)}
 	svc := service.New(cache, &mockStorageEx{}, logger)
 	deleteChan := make(chan handler.DeleteRequest, 100)
-	return handler.NewURLHandler(svc, "http://localhost:8080", logger, deleteChan)
+	return handler.NewURLHandler(svc, "http://localhost:8080", logger, deleteChan, nil)
 }
 
 // ExampleURLHandler_PostURL демонстрирует сокращение URL через POST /.
@@ -119,7 +119,7 @@ func ExampleURLHandler_GetURL() {
 	}}
 	svc := service.New(cache, &mockStorageEx{}, logger)
 	deleteChan := make(chan handler.DeleteRequest, 100)
-	h := handler.NewURLHandler(svc, "http://localhost:8080", logger, deleteChan)
+	h := handler.NewURLHandler(svc, "http://localhost:8080", logger, deleteChan, nil)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
