@@ -1,3 +1,4 @@
+// Package app содержит инициализацию и конфигурацию приложения URL-сокращателя.
 package app
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/anon-d/urlshortener/internal/worker"
 )
 
+// App — корневая структура приложения, содержащая HTTP-сервер, роутер и фоновые воркеры.
 type App struct {
 	server       *http.Server
 	router       *gin.Engine
@@ -29,6 +31,8 @@ type App struct {
 	deleteWorker *worker.DeleteWorker
 }
 
+// New создаёт и настраивает новое приложение:
+// инициализирует конфиг, логгер, хранилище, кэш, сервис и мидлвары.
 func New() (*App, error) {
 
 	cfg := config.NewServerConfig()
@@ -165,6 +169,7 @@ func convertDeleteChannel(in <-chan handler.DeleteRequest) <-chan worker.DeleteR
 	return out
 }
 
+// SetupRoutes регистрирует все HTTP-маршруты приложения.
 func (a *App) SetupRoutes() {
 	maintenance := a.router.Group("/maintenance")
 	{
@@ -183,10 +188,12 @@ func (a *App) SetupRoutes() {
 
 }
 
+// Run запускает HTTP-сервер.
 func (a *App) Run() error {
 	return a.server.ListenAndServe()
 }
 
+// Shutdown корректно останавливает приложение: воркеры и HTTP-сервер.
 func (a *App) Shutdown(ctx context.Context) {
 	if a.deleteWorker != nil {
 		a.deleteWorker.Stop()

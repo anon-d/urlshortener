@@ -1,3 +1,5 @@
+// Package cache реализует потокобезопасный in-memory кэш
+// для хранения пар shortURL → originalURL.
 package cache
 
 import (
@@ -8,11 +10,13 @@ import (
 	"github.com/anon-d/urlshortener/internal/repository/local"
 )
 
+// Cache — потокобезопасное хранилище в памяти на основе map с защитой через sync.RWMutex.
 type Cache struct {
 	mu   sync.RWMutex
 	data map[string]string
 }
 
+// New создаёт новый Cache и заполняет его данными из БД или локального хранилища.
 func New(db *postgres.Repository, local *local.Local) *Cache {
 	cache := Cache{
 		data: make(map[string]string),
@@ -32,6 +36,7 @@ func New(db *postgres.Repository, local *local.Local) *Cache {
 	}
 }
 
+// Get возвращает ссылку на внутреннюю мапу кэша.
 func (c *Cache) Get() map[string]string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -39,6 +44,7 @@ func (c *Cache) Get() map[string]string {
 	return c.data
 }
 
+// Set сохраняет пару id → url в кэш.
 func (c *Cache) Set(id string, url string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -46,6 +52,7 @@ func (c *Cache) Set(id string, url string) {
 	c.data[id] = url
 }
 
+// GetOne возвращает URL по id. Второе значение — флаг наличия в кэше.
 func (c *Cache) GetOne(id string) (string, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -1,3 +1,5 @@
+// Package config обеспечивает загрузку конфигурации из флагов командной строки
+// и переменных окружения. Переменные окружения имеют приоритет.
 package config
 
 import (
@@ -7,6 +9,7 @@ import (
 	"sync"
 )
 
+// ServerConfig — конфигурация сервера.
 type ServerConfig struct {
 	AddrServer        string `env:"SERVER_ADDRESS"`
 	AddrURL           string `env:"BASE_URL"`
@@ -41,6 +44,7 @@ func initFlags() {
 	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
 }
 
+// NewServerConfig создаёт конфигурацию, читая флаги и переменные окружения.
 func NewServerConfig() *ServerConfig {
 	flagsOnce.Do(initFlags)
 

@@ -1,3 +1,5 @@
+// Package repository определяет интерфейсы и адаптеры для работы с хранилищами URL.
+// Поддерживает PostgreSQL (через DBAdapter) и локальный файл (через LocalAdapter).
 package repository
 
 import (
@@ -19,11 +21,12 @@ type Storage interface {
 	Ping(ctx context.Context) error
 }
 
-// DBAdapter
+// DBAdapter адаптирует интерфейс DB (БД) к единому интерфейсу Storage.
 type DBAdapter struct {
 	db DB
 }
 
+// NewDBAdapter создаёт новый DBAdapter.
 func NewDBAdapter(db DB) *DBAdapter {
 	return &DBAdapter{db: db}
 }
@@ -112,6 +115,7 @@ type LocalAdapter struct {
 	local Local
 }
 
+// NewLocalAdapter создаёт новый LocalAdapter.
 func NewLocalAdapter(local Local) *LocalAdapter {
 	return &LocalAdapter{
 		local: local,
@@ -201,6 +205,7 @@ func (l *LocalAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
+// DB — интерфейс работы с реляционной базой данных.
 type DB interface {
 	InsertURL(ctx context.Context, id, shortURL, originalURL, userID string) error
 	InsertURLsBatch(ctx context.Context, data []Data) error
@@ -212,6 +217,7 @@ type DB interface {
 	Ping(ctx context.Context) error
 }
 
+// Local — интерфейс локального файлового хранилища.
 type Local interface {
 	Save(data []model.Data) error
 	Load() ([]model.Data, error)

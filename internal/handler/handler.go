@@ -1,3 +1,6 @@
+// Package handler содержит HTTP-обработчики для сервиса сокращения URL.
+// Обработчики работают поверх фреймворка Gin и реализуют CRUD-операции
+// над короткими ссылками.
 package handler
 
 import (
@@ -12,28 +15,41 @@ import (
 	"go.uber.org/zap"
 )
 
+// APIRequest — тело запроса для эндпоинта POST /api/shorten.
+// Содержит оригинальный URL, который необходимо сократить.
 type APIRequest struct {
 	URL string `json:"url" binding:"required"`
 }
+
+// APIResponse — тело ответа для эндпоинта POST /api/shorten.
+// Содержит результирующий короткий URL.
 type APIResponse struct {
 	Result string `json:"result"`
 }
 
+// ItemBatchRequest — элемент массива в теле запроса для пакетного сокращения
+// (POST /api/shorten/batch). Связывает correlation_id с оригинальным URL.
 type ItemBatchRequest struct {
 	CorrelationID string `json:"correlation_id,omitzero"`
 	OriginalURL   string `json:"original_url,omitzero"`
 }
 
+// ItemBatchResponse — элемент массива в теле ответа для пакетного сокращения.
+// Связывает correlation_id с результирующим коротким URL.
 type ItemBatchResponse struct {
 	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }
 
+// UserURLResponse — элемент ответа для эндпоинта GET /api/user/urls.
+// Содержит пару короткий URL — оригинальный URL.
 type UserURLResponse struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
 
+// URLHandler содержит зависимости и методы для обработки HTTP-запросов
+// к сервису сокращения URL.
 type URLHandler struct {
 	Service       *service.Service
 	URLAddr       string
@@ -41,12 +57,16 @@ type URLHandler struct {
 	DeleteChannel chan<- DeleteRequest
 }
 
-// DeleteRequest представляет запрос на удаление URL
+// DeleteRequest представляет запрос на асинхронное удаление URL.
+// Передаётся через канал в DeleteWorker для пакетной обработки.
 type DeleteRequest struct {
 	UserID   string
 	ShortURL string
 }
 
+// NewURLHandler создаёт новый экземпляр URLHandler.
+// Принимает сервис бизнес-логики, базовый адрес для формирования коротких ссылок,
+// логгер и канал для отправки запросов на удаление.
 func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger, deleteChan chan<- DeleteRequest) *URLHandler {
 	return &URLHandler{
 		Service:       service,
@@ -56,6 +76,7 @@ func NewURLHandler(service *service.Service, urlAddr string, logger *zap.Sugared
 	}
 }
 
+// NotAllowed возвращает 405 Method Not Allowed.
 func (u *URLHandler) NotAllowed(c *gin.Context) {
 	c.JSON(http.StatusMethodNotAllowed, gin.H{
 		"status":  "Error",
@@ -63,6 +84,7 @@ func (u *URLHandler) NotAllowed(c *gin.Context) {
 	})
 }
 
+// HealthCheck возвращает 200 OK для проверки работоспособности сервиса.
 func (u *URLHandler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "Success",
@@ -70,6 +92,7 @@ func (u *URLHandler) HealthCheck(c *gin.Context) {
 	})
 }
 
+// NotFound возвращает 404 Not Found.
 func (u *URLHandler) NotFound(c *gin.Context) {
 	c.JSON(http.StatusNotFound, gin.H{
 		"status":  "Error",
@@ -238,6 +261,8 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 	}
 }
 
+// PingDB проверяет доступность хранилища данных.
+// Возвращает 200 OK при успешном подключении, 500 Internal Server Error в противном случае.
 func (u *URLHandler) PingDB(c *gin.Context) {
 	if u.Service.Storage == nil {
 		u.logger.Warnw("storage is not initialized")

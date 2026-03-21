@@ -1,3 +1,4 @@
+// Package local реализует персистентное хранилище URL на основе JSON-файла.
 package local
 
 import (
@@ -11,11 +12,13 @@ import (
 	"github.com/anon-d/urlshortener/internal/model"
 )
 
+// Local — файловое хранилище URL в формате JSON.
 type Local struct {
 	path   string
 	logger *zap.SugaredLogger
 }
 
+// New создаёт новый экземпляр Local с указанным путём к файлу.
 func New(path string, logger *zap.SugaredLogger) *Local {
 	return &Local{
 		path:   path,
@@ -23,6 +26,7 @@ func New(path string, logger *zap.SugaredLogger) *Local {
 	}
 }
 
+// Save сериализует данные в JSON и записывает в файл.
 func (l *Local) Save(data []model.Data) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
@@ -41,6 +45,8 @@ func (l *Local) Save(data []model.Data) error {
 	}
 	return nil
 }
+
+// Load читает данные из JSON-файла. Если файл не существует, возвращает пустой срез.
 func (l *Local) Load() ([]model.Data, error) {
 	data := []model.Data{}
 	l.logger.Debugw("Loading data from file")

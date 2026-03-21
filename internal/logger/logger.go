@@ -1,3 +1,4 @@
+// Package logger предоставляет инициализацию структурированного логгера на основе zap.
 package logger
 
 import (
@@ -6,6 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// New создаёт production-логгер zap.SugaredLogger.
 func New() (*zap.SugaredLogger, error) {
 	logger, err := zap.NewProduction()
 	if err != nil {

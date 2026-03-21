@@ -1,3 +1,5 @@
+// Package service реализует бизнес-логику сокращения URL:
+// генерацию коротких идентификаторов, работу с кэшем и хранилищем.
 package service
 
 import (
@@ -33,18 +35,22 @@ func (e *ConflictError) Error() string {
 	return fmt.Sprintf("URL already exists with short_url: %s", e.ShortURL)
 }
 
+// CacheService — интерфейс кэша для хранения пар shortURL → originalURL.
 type CacheService interface {
 	Set(data *model.Data)
 	Get(id string) (string, bool)
 	Self() []model.Data
 }
 
+// Service — основной сервис бизнес-логики сокращения URL.
+// Координирует взаимодействие между кэшем и персистентным хранилищем.
 type Service struct {
 	Cache   CacheService
 	Storage repository.Storage
 	logger  *zap.SugaredLogger
 }
 
+// New создаёт новый экземпляр Service.
 func New(cache CacheService, storage repository.Storage, logger *zap.SugaredLogger) *Service {
 	return &Service{
 		Cache:   cache,
@@ -53,6 +59,8 @@ func New(cache CacheService, storage repository.Storage, logger *zap.SugaredLogg
 	}
 }
 
+// ShortenURL сокращает оригинальный URL и возвращает короткий идентификатор.
+// Если URL уже существует в хранилище, возвращает существующий ID и ConflictError.
 func (s *Service) ShortenURL(ctx context.Context, longURL string, userID string) (string, error) {
 	urlID := GenerateID()
 
@@ -84,6 +92,7 @@ func (s *Service) ShortenURL(ctx context.Context, longURL string, userID string)
 	return urlID, nil
 }
 
+// GetURL возвращает оригинальный URL по короткому идентификатору из кэша.
 func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 	originURL, exists := s.Cache.Get(shortURL)
 	if !exists {
@@ -127,6 +136,9 @@ func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.
 	return model.Data{}, errors.New("URL not found")
 }
 
+// ShortenBatchURL сокращает набор URL за один вызов.
+// Принимает мапу correlationID → originalURL,
+// возвращает мапу correlationID → shortURL.
 func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string, userID string) (map[string]string, error) {
 	dataMapResult := make(map[string]string, len(dataMap))
 	dataList := make([]model.Data, 0, len(dataMap))
