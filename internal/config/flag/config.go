@@ -8,26 +8,26 @@ import (
 )
 
 type ServerConfig struct {
-	AddrServer         string `env:"SERVER_ADDRESS"`
-	AddrURL            string `env:"BASE_URL"`
-	Env                string `env:"ENV"`
-	File               string `env:"FILE_STORAGE_PATH"`
-	DSN                string `env:"DATABASE_DSN"`
-	DeleteWorkerCount  int    `env:"DELETE_WORKER_COUNT"`
-	DeleteChannelSize  int    `env:"DELETE_CHANNEL_SIZE"`
-	SecretKey          string `env:"SECRET_KEY"`
+	AddrServer        string `env:"SERVER_ADDRESS"`
+	AddrURL           string `env:"BASE_URL"`
+	Env               string `env:"ENV"`
+	File              string `env:"FILE_STORAGE_PATH"`
+	DSN               string `env:"DATABASE_DSN"`
+	DeleteWorkerCount int    `env:"DELETE_WORKER_COUNT"`
+	DeleteChannelSize int    `env:"DELETE_CHANNEL_SIZE"`
+	SecretKey         string `env:"SECRET_KEY"`
 }
 
 var (
-	addrServer         *string
-	addrURL            *string
-	envValue           *string
-	fileValue          *string
-	dsnValue           *string
-	deleteWorkerCount  *int
-	deleteChannelSize  *int
-	secretKey          *string
-	flagsOnce          sync.Once
+	addrServer        *string
+	addrURL           *string
+	envValue          *string
+	fileValue         *string
+	dsnValue          *string
+	deleteWorkerCount *int
+	deleteChannelSize *int
+	secretKey         *string
+	flagsOnce         sync.Once
 )
 
 func initFlags() {

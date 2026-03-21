@@ -83,9 +83,9 @@ func TestNewServerConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-		for key, val := range tt.envVars {
-			t.Setenv(key, val)
-		}
+			for key, val := range tt.envVars {
+				t.Setenv(key, val)
+			}
 
 			got := NewServerConfig()
 

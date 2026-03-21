@@ -118,12 +118,12 @@ func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.
 			OriginalURL: originURL,
 		}, nil
 	}
-	
+
 	// Если нет в кэше, проверяем storage
 	if s.Storage != nil {
 		return s.Storage.GetURLByShortURL(ctx, shortURL)
 	}
-	
+
 	return model.Data{}, errors.New("URL not found")
 }
 
