@@ -31,10 +31,12 @@ func NewDBAdapter(db DB) *DBAdapter {
 	return &DBAdapter{db: db}
 }
 
+// Insert вставляет один URL через БД.
 func (d *DBAdapter) Insert(ctx context.Context, data model.Data) error {
 	return d.db.InsertURL(ctx, data.ID, data.ShortURL, data.OriginalURL, data.UserID)
 }
 
+// InsertBatch вставляет набор URL через БД.
 func (d *DBAdapter) InsertBatch(ctx context.Context, dataList []model.Data) error {
 	data := make([]Data, len(dataList))
 	for i, item := range dataList {
@@ -48,6 +50,7 @@ func (d *DBAdapter) InsertBatch(ctx context.Context, dataList []model.Data) erro
 	return d.db.InsertURLsBatch(ctx, data)
 }
 
+// Select возвращает все URL из БД.
 func (d *DBAdapter) Select(ctx context.Context) ([]model.Data, error) {
 	data, err := d.db.GetURLs(ctx)
 	if err != nil {
@@ -66,10 +69,12 @@ func (d *DBAdapter) Select(ctx context.Context) ([]model.Data, error) {
 	return result, nil
 }
 
+// GetURLByOriginal находит короткий URL по оригинальному.
 func (d *DBAdapter) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
 	return d.db.GetURLByOriginal(ctx, originalURL)
 }
 
+// GetURLsByUser возвращает все URL пользователя.
 func (d *DBAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
 	data, err := d.db.GetURLsByUser(ctx, userID)
 	if err != nil {
@@ -88,6 +93,7 @@ func (d *DBAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.D
 	return result, nil
 }
 
+// GetURLByShortURL находит URL по короткому идентификатору.
 func (d *DBAdapter) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
 	data, err := d.db.GetURLByShortURL(ctx, shortURL)
 	if err != nil {
@@ -102,10 +108,12 @@ func (d *DBAdapter) GetURLByShortURL(ctx context.Context, shortURL string) (mode
 	}, nil
 }
 
+// BatchMarkAsDeleted помечает URL как удалённые в БД.
 func (d *DBAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
 	return d.db.BatchMarkAsDeleted(ctx, requests)
 }
 
+// Ping проверяет доступность БД.
 func (d *DBAdapter) Ping(ctx context.Context) error {
 	return d.db.Ping(ctx)
 }
@@ -122,22 +130,26 @@ func NewLocalAdapter(local Local) *LocalAdapter {
 	}
 }
 
+// Insert сохраняет URL в локальный файл.
 func (l *LocalAdapter) Insert(ctx context.Context, data model.Data) error {
 	currentData, _ := l.local.Load()
 	currentData = append(currentData, data)
 	return l.local.Save(currentData)
 }
 
+// InsertBatch сохраняет набор URL в локальный файл.
 func (l *LocalAdapter) InsertBatch(ctx context.Context, dataList []model.Data) error {
 	currentData, _ := l.local.Load()
 	currentData = append(currentData, dataList...)
 	return l.local.Save(currentData)
 }
 
+// Select возвращает все URL из локального файла.
 func (l *LocalAdapter) Select(ctx context.Context) ([]model.Data, error) {
 	return l.local.Load()
 }
 
+// GetURLByOriginal находит короткий URL по оригинальному в локальном файле.
 func (l *LocalAdapter) GetURLByOriginal(ctx context.Context, originalURL string) (string, error) {
 	data, err := l.local.Load()
 	if err != nil {
@@ -151,6 +163,7 @@ func (l *LocalAdapter) GetURLByOriginal(ctx context.Context, originalURL string)
 	return "", ErrNotFound
 }
 
+// GetURLsByUser возвращает все URL пользователя из локального файла.
 func (l *LocalAdapter) GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error) {
 	data, err := l.local.Load()
 	if err != nil {
@@ -165,6 +178,7 @@ func (l *LocalAdapter) GetURLsByUser(ctx context.Context, userID string) ([]mode
 	return result, nil
 }
 
+// GetURLByShortURL находит URL по короткому идентификатору в локальном файле.
 func (l *LocalAdapter) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
 	data, err := l.local.Load()
 	if err != nil {
@@ -178,6 +192,7 @@ func (l *LocalAdapter) GetURLByShortURL(ctx context.Context, shortURL string) (m
 	return model.Data{}, ErrNotFound
 }
 
+// BatchMarkAsDeleted помечает URL как удалённые в локальном файле.
 func (l *LocalAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
 	// Для локального хранилища помечаем URL как удаленные
 	data, err := l.local.Load()
@@ -201,6 +216,7 @@ func (l *LocalAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker
 	return l.local.Save(data)
 }
 
+// Ping всегда возвращает nil для локального хранилища.
 func (l *LocalAdapter) Ping(ctx context.Context) error {
 	return nil
 }

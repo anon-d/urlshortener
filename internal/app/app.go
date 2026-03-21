@@ -150,6 +150,7 @@ type deleteStorageAdapter struct {
 	storage repository.Storage
 }
 
+// BatchMarkAsDeleted делегирует пакетное удаление в Storage.
 func (d *deleteStorageAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
 	return d.storage.BatchMarkAsDeleted(ctx, requests)
 }

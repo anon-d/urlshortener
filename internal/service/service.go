@@ -31,6 +31,7 @@ type ConflictError struct {
 	ShortURL string
 }
 
+// Error возвращает строковое представление ошибки конфликта.
 func (e *ConflictError) Error() string {
 	return fmt.Sprintf("URL already exists with short_url: %s", e.ShortURL)
 }

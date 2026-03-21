@@ -21,11 +21,13 @@ import (
 // ErrUniqueViolation возвращается при нарушении уникального ограничения
 var ErrUniqueViolation = errors.New("unique constraint violation")
 
+// Repository — репозиторий для работы с PostgreSQL.
 type Repository struct {
 	db     *sql.DB
 	logger *zap.SugaredLogger
 }
 
+// NewRepository создаёт новый Repository с пулом соединений и применяет миграции.
 func NewRepository(ctx context.Context, dsn string, logger *zap.SugaredLogger) (*Repository, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -42,10 +44,12 @@ func NewRepository(ctx context.Context, dsn string, logger *zap.SugaredLogger) (
 	return repo, nil
 }
 
+// Close закрывает соединение с БД.
 func (r *Repository) Close() error {
 	return r.db.Close()
 }
 
+// Ping проверяет доступность БД.
 func (r *Repository) Ping(ctx context.Context) error {
 	return r.db.PingContext(ctx)
 }
@@ -65,6 +69,7 @@ func (r *Repository) migrate(ctx context.Context) error {
 	return nil
 }
 
+// InsertURL вставляет один URL в БД.
 func (r *Repository) InsertURL(ctx context.Context, id, shortURL, originalURL, userID string) error {
 	query := "INSERT INTO urls (id, short_url, original_url, user_id) VALUES ($1, $2, $3, $4)"
 	_, err := r.db.ExecContext(ctx, query, id, shortURL, originalURL, userID)
@@ -101,6 +106,7 @@ func isUniqueViolation(err error) bool {
 	return false
 }
 
+// GetURLs возвращает все URL из БД.
 func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 	query := "SELECT id, short_url, original_url, COALESCE(user_id, ''), COALESCE(is_deleted, false) FROM urls"
 	data := make([]repository.Data, 0)
@@ -130,6 +136,7 @@ func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 	return data, nil
 }
 
+// InsertURLsBatch вставляет набор URL в БД одним batch-запросом.
 func (r *Repository) InsertURLsBatch(ctx context.Context, data []repository.Data) error {
 	if len(data) == 0 {
 		return nil

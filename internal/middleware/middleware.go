@@ -75,16 +75,19 @@ type gzipResponseWriter struct {
 	shouldCompress bool
 }
 
+// Flush сбрасывает буфер gzip-писателя.
 func (g *gzipResponseWriter) Flush() {
 	if g.shouldCompress && g.Writer != nil {
 		g.Writer.Flush()
 	}
 }
 
+// Header возвращает HTTP-заголовки ответа.
 func (g *gzipResponseWriter) Header() http.Header {
 	return g.ResponseWriter.Header()
 }
 
+// Write записывает данные, сжимая gzip при необходимости.
 func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 	if !g.writeStarted {
 		g.writeStarted = true
@@ -155,6 +158,7 @@ func DecompressionRequest() gin.HandlerFunc {
 	}
 }
 
+// Константы для работы с идентификацией пользователя.
 const (
 	// UserIDCookieName — имя HTTP-куки для идентификации пользователя.
 	UserIDCookieName = "user_id"
