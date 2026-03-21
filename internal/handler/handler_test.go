@@ -17,19 +17,19 @@ import (
 
 // Mock implementations
 type mockCacheService struct {
-	data map[string]any
+	data map[string]string
 }
 
 func (m *mockCacheService) Set(data *model.Data) {
 	if m.data == nil {
-		m.data = make(map[string]any)
+		m.data = make(map[string]string)
 	}
 	m.data[data.ID] = data.OriginalURL
 }
 
-func (m *mockCacheService) Get(id string) (any, bool) {
+func (m *mockCacheService) Get(id string) (string, bool) {
 	if m.data == nil {
-		return nil, false
+		return "", false
 	}
 	val, ok := m.data[id]
 	return val, ok
@@ -244,7 +244,7 @@ func TestGetURL_Success(t *testing.T) {
 	testLogger := zap.NewNop().Sugar()
 
 	cache := &mockCacheService{
-		data: map[string]any{
+		data: map[string]string{
 			"abc123": "https://example.com",
 		},
 	}

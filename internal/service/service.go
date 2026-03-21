@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sync"
 
 	"go.uber.org/zap"
 
@@ -13,6 +14,15 @@ import (
 	"github.com/anon-d/urlshortener/internal/repository"
 	"github.com/anon-d/urlshortener/internal/repository/db/postgres"
 )
+
+// idBufPool — пул для переиспользования буферов в GenerateID,
+// чтобы избежать аллокации []byte при каждом вызове.
+var idBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 6)
+		return &b
+	},
+}
 
 // ConflictError ошибка конфликта - URL уже существует
 type ConflictError struct {
@@ -25,7 +35,7 @@ func (e *ConflictError) Error() string {
 
 type CacheService interface {
 	Set(data *model.Data)
-	Get(id string) (any, bool)
+	Get(id string) (string, bool)
 	Self() []model.Data
 }
 
@@ -43,13 +53,13 @@ func New(cache CacheService, storage repository.Storage, logger *zap.SugaredLogg
 	}
 }
 
-func (s *Service) ShortenURL(ctx context.Context, longURL []byte, userID string) ([]byte, error) {
-	urlID := generateID()
-	
+func (s *Service) ShortenURL(ctx context.Context, longURL string, userID string) (string, error) {
+	urlID := GenerateID()
+
 	data := model.Data{
 		ID:          urlID,
 		ShortURL:    urlID,
-		OriginalURL: string(longURL),
+		OriginalURL: longURL,
 		UserID:      userID,
 	}
 
@@ -62,16 +72,16 @@ func (s *Service) ShortenURL(ctx context.Context, longURL []byte, userID string)
 		if storageErr != nil && errors.Is(storageErr, postgres.ErrUniqueViolation) {
 			existingShortURL, err := s.Storage.GetURLByOriginal(ctx, data.OriginalURL)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get existing URL after unique violation in ShortenURL: %w", err)
+				return "", fmt.Errorf("failed to get existing URL after unique violation in ShortenURL: %w", err)
 			}
 			s.logger.Infow("URL already exists, returning conflict", "short_url", existingShortURL)
-			return []byte(existingShortURL), &ConflictError{ShortURL: existingShortURL}
+			return existingShortURL, &ConflictError{ShortURL: existingShortURL}
 		} else if storageErr != nil {
 			s.logger.Warnw("Failed to insert URL into storage", "error", storageErr)
 		}
 	}
 
-	return []byte(urlID), nil
+	return urlID, nil
 }
 
 func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
@@ -79,11 +89,7 @@ func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
 	if !exists {
 		return "", errors.New("URL not found")
 	}
-	originURLStr, ok := originURL.(string)
-	if !ok {
-		return "", errors.New("invalid URL data in cache")
-	}
-	return originURLStr, nil
+	return originURL, nil
 }
 
 // GetURLsByUser возвращает все URL, созданные пользователем
@@ -107,13 +113,9 @@ func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.
 			}
 		}
 		// Если storage недоступен, возвращаем из кэша
-		originURLStr, ok := originURL.(string)
-		if !ok {
-			return model.Data{}, errors.New("invalid URL data in cache")
-		}
 		return model.Data{
 			ShortURL:    shortURL,
-			OriginalURL: originURLStr,
+			OriginalURL: originURL,
 		}, nil
 	}
 	
@@ -129,7 +131,7 @@ func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string
 	dataMapResult := make(map[string]string, len(dataMap))
 	dataList := make([]model.Data, 0, len(dataMap))
 	for key, value := range dataMap {
-		urlID := generateID()
+		urlID := GenerateID()
 		data := model.Data{
 			ID:          urlID,
 			ShortURL:    urlID,
@@ -150,9 +152,13 @@ func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string
 	return dataMapResult, nil
 }
 
-// generateID returns a random string of length 8.
-func generateID() string {
-	b := make([]byte, 6)
+// GenerateID returns a random string of length 8.
+// Использует sync.Pool для переиспользования буфера.
+func GenerateID() string {
+	bp := idBufPool.Get().(*[]byte)
+	b := *bp
 	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)[:8]
+	id := base64.URLEncoding.EncodeToString(b)[:8]
+	idBufPool.Put(bp)
+	return id
 }

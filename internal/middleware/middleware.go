@@ -8,11 +8,19 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// gzipWriterPool переиспользует gzip.Writer для снижения аллокаций.
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
 
 func GlobalMiddleware(logger *zap.SugaredLogger) []gin.HandlerFunc {
 	return []gin.HandlerFunc{
@@ -104,11 +112,13 @@ func CompressionResponse() gin.HandlerFunc {
 		}
 
 		wo := c.Writer
-		wc := gzip.NewWriter(wo)
+		wc := gzipWriterPool.Get().(*gzip.Writer)
+		wc.Reset(wo)
 		gzWriter := &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
 		defer func() {
 			if gzWriter.Writer != nil {
 				gzWriter.Writer.Close()
+				gzipWriterPool.Put(wc)
 			}
 		}()
 

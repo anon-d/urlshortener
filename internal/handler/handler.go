@@ -92,13 +92,13 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 	}
 
 	userID, _ := getUserID(c)
-	id, err := u.Service.ShortenURL(c, body, userID)
+	id, err := u.Service.ShortenURL(c, string(body), userID)
 	if err != nil {
 		var conflictErr *service.ConflictError
 		if errors.As(err, &conflictErr) {
 			u.logger.Warnw("URL already exists", "error", conflictErr)
 			// URL уже существует, возвращаем 409
-			shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
+			shortURL, joinErr := url.JoinPath(u.URLAddr, id)
 			if joinErr != nil {
 				u.logger.Errorw("failed to join URL path", "error", joinErr)
 				c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -111,7 +111,7 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
-	shortURL, err := url.JoinPath(u.URLAddr, string(id))
+	shortURL, err := url.JoinPath(u.URLAddr, id)
 	if err != nil {
 		u.logger.Errorw("failed to join URL path", "error", err)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -160,9 +160,9 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 
 	userID, _ := getUserID(c)
 	targetURL := request.URL
-	id, err := u.Service.ShortenURL(c, []byte(targetURL), userID)
+	id, err := u.Service.ShortenURL(c, targetURL, userID)
 
-	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
+	shortURL, joinErr := url.JoinPath(u.URLAddr, id)
 	if joinErr != nil {
 		u.logger.Errorw("failed to join URL path", "error", joinErr)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))

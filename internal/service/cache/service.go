@@ -21,7 +21,7 @@ func (c *CacheService) Set(data *model.Data) {
 	c.cache.Set(data.ID, data.OriginalURL)
 }
 
-func (c *CacheService) Get(id string) (any, bool) {
+func (c *CacheService) Get(id string) (string, bool) {
 	return c.cache.GetOne(id)
 }
 
@@ -30,18 +30,14 @@ func (c *CacheService) Self() []model.Data {
 }
 
 // toFileData converts cache data to a slice of model.Data.
-func toFileData(cache map[string]any) []model.Data {
+func toFileData(cache map[string]string) []model.Data {
 	if len(cache) == 0 {
 		return []model.Data{}
 	}
 	id := 1
 	data := make([]model.Data, 0, len(cache))
 	for shortURL, originalURL := range cache {
-		originalURLStr, ok := originalURL.(string)
-		if !ok {
-			continue
-		}
-		data = append(data, model.NewData(strconv.Itoa(id), shortURL, originalURLStr))
+		data = append(data, model.NewData(strconv.Itoa(id), shortURL, originalURL))
 		id++
 	}
 	return data
