@@ -1,3 +1,5 @@
+// Package config обеспечивает загрузку конфигурации из флагов командной строки
+// и переменных окружения. Переменные окружения имеют приоритет.
 package config
 
 import (
@@ -7,27 +9,32 @@ import (
 	"sync"
 )
 
+// ServerConfig — конфигурация сервера.
 type ServerConfig struct {
-	AddrServer         string `env:"SERVER_ADDRESS"`
-	AddrURL            string `env:"BASE_URL"`
-	Env                string `env:"ENV"`
-	File               string `env:"FILE_STORAGE_PATH"`
-	DSN                string `env:"DATABASE_DSN"`
-	DeleteWorkerCount  int    `env:"DELETE_WORKER_COUNT"`
-	DeleteChannelSize  int    `env:"DELETE_CHANNEL_SIZE"`
-	SecretKey          string `env:"SECRET_KEY"`
+	AddrServer        string `env:"SERVER_ADDRESS"`
+	AddrURL           string `env:"BASE_URL"`
+	Env               string `env:"ENV"`
+	File              string `env:"FILE_STORAGE_PATH"`
+	DSN               string `env:"DATABASE_DSN"`
+	DeleteWorkerCount int    `env:"DELETE_WORKER_COUNT"`
+	DeleteChannelSize int    `env:"DELETE_CHANNEL_SIZE"`
+	SecretKey         string `env:"SECRET_KEY"`
+	AuditFile         string `env:"AUDIT_FILE"`
+	AuditURL          string `env:"AUDIT_URL"`
 }
 
 var (
-	addrServer         *string
-	addrURL            *string
-	envValue           *string
-	fileValue          *string
-	dsnValue           *string
-	deleteWorkerCount  *int
-	deleteChannelSize  *int
-	secretKey          *string
-	flagsOnce          sync.Once
+	addrServer        *string
+	addrURL           *string
+	envValue          *string
+	fileValue         *string
+	dsnValue          *string
+	deleteWorkerCount *int
+	deleteChannelSize *int
+	secretKey         *string
+	auditFile         *string
+	auditURL          *string
+	flagsOnce         sync.Once
 )
 
 func initFlags() {
@@ -39,8 +46,11 @@ func initFlags() {
 	deleteWorkerCount = flag.Int("w", 2, "number of delete worker channels")
 	deleteChannelSize = flag.Int("c", 1000, "size of each delete channel buffer")
 	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
+	auditFile = flag.String("audit-file", "", "path to audit log file")
+	auditURL = flag.String("audit-url", "", "URL of remote audit server")
 }
 
+// NewServerConfig создаёт конфигурацию, читая флаги и переменные окружения.
 func NewServerConfig() *ServerConfig {
 	flagsOnce.Do(initFlags)
 
@@ -104,6 +114,18 @@ func NewServerConfig() *ServerConfig {
 		cfg.SecretKey = envSecretKey
 	} else {
 		cfg.SecretKey = *secretKey
+	}
+
+	if envAuditFile, ok := os.LookupEnv("AUDIT_FILE"); ok {
+		cfg.AuditFile = envAuditFile
+	} else {
+		cfg.AuditFile = *auditFile
+	}
+
+	if envAuditURL, ok := os.LookupEnv("AUDIT_URL"); ok {
+		cfg.AuditURL = envAuditURL
+	} else {
+		cfg.AuditURL = *auditURL
 	}
 
 	return cfg

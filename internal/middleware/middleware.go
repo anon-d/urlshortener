@@ -8,12 +8,22 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
+// gzipWriterPool переиспользует gzip.Writer для снижения аллокаций.
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
+
+// GlobalMiddleware возвращает набор общих мидлваров: отлов паник,
+// логирование запросов/ответов, gzip-сжатие и распаковка.
 func GlobalMiddleware(logger *zap.SugaredLogger) []gin.HandlerFunc {
 	return []gin.HandlerFunc{
 		PanicMiddleware(logger),
@@ -24,7 +34,7 @@ func GlobalMiddleware(logger *zap.SugaredLogger) []gin.HandlerFunc {
 	}
 }
 
-// отлов паники
+// PanicMiddleware перехватывает паники и возвращает 500 Internal Server Error.
 func PanicMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -40,7 +50,7 @@ func PanicMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
-// служебки
+// RequestMiddleware логирует входящие запросы: URL, метод, длительность.
 func RequestMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -50,6 +60,7 @@ func RequestMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
+// ResponseMiddleware логирует исходящие ответы: HTTP-код и размер тела.
 func ResponseMiddleware(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
@@ -64,16 +75,19 @@ type gzipResponseWriter struct {
 	shouldCompress bool
 }
 
+// Flush сбрасывает буфер gzip-писателя.
 func (g *gzipResponseWriter) Flush() {
 	if g.shouldCompress && g.Writer != nil {
 		g.Writer.Flush()
 	}
 }
 
+// Header возвращает HTTP-заголовки ответа.
 func (g *gzipResponseWriter) Header() http.Header {
 	return g.ResponseWriter.Header()
 }
 
+// Write записывает данные, сжимая gzip при необходимости.
 func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 	if !g.writeStarted {
 		g.writeStarted = true
@@ -94,7 +108,7 @@ func (g *gzipResponseWriter) Write(b []byte) (int, error) {
 	return g.ResponseWriter.Write(b)
 }
 
-// для сжатия
+// CompressionResponse сжимает ответы gzip для клиентов, поддерживающих Accept-Encoding: gzip.
 func CompressionResponse() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		acceptEncoding := c.Request.Header.Get("Accept-Encoding")
@@ -104,11 +118,13 @@ func CompressionResponse() gin.HandlerFunc {
 		}
 
 		wo := c.Writer
-		wc := gzip.NewWriter(wo)
+		wc := gzipWriterPool.Get().(*gzip.Writer)
+		wc.Reset(wo)
 		gzWriter := &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
 		defer func() {
 			if gzWriter.Writer != nil {
 				gzWriter.Writer.Close()
+				gzipWriterPool.Put(wc)
 			}
 		}()
 
@@ -120,7 +136,7 @@ func CompressionResponse() gin.HandlerFunc {
 	}
 }
 
-// распаковка
+// DecompressionRequest распаковывает gzip-тело запроса, если Content-Encoding: gzip.
 func DecompressionRequest() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		encodingType := c.Request.Header.Get("Content-Encoding")
@@ -142,9 +158,12 @@ func DecompressionRequest() gin.HandlerFunc {
 	}
 }
 
+// Константы для работы с идентификацией пользователя.
 const (
-	UserIDCookieName = "user_id" // куки
-	UserIDContextKey = "user_id" // ключ контекста
+	// UserIDCookieName — имя HTTP-куки для идентификации пользователя.
+	UserIDCookieName = "user_id"
+	// UserIDContextKey — ключ в контексте Gin для хранения user_id.
+	UserIDContextKey = "user_id"
 )
 
 // AuthMiddleware проверяет наличие подписанной куки с user_id.

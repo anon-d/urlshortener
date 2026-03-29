@@ -54,6 +54,7 @@ func (w *DeleteWorker) AddChannel(ch <-chan DeleteRequest) {
 	w.inputChannels = append(w.inputChannels, ch)
 }
 
+// Start запускает воркер: объединяет входные каналы и начинает обработку удалений.
 func (w *DeleteWorker) Start() {
 	mergedChan := w.fanIn(w.inputChannels...)
 
@@ -149,6 +150,7 @@ func (w *DeleteWorker) flush(requests []DeleteRequest) {
 	w.logger.Infow("batch deleted URLs", "count", len(requests))
 }
 
+// Stop останавливает воркер, отменяя контекст.
 func (w *DeleteWorker) Stop() {
 	w.cancel()
 }

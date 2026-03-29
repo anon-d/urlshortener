@@ -1,3 +1,4 @@
+// Package app содержит инициализацию и конфигурацию приложения URL-сокращателя.
 package app
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"github.com/anon-d/urlshortener/internal/audit"
 	config "github.com/anon-d/urlshortener/internal/config/flag"
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/logger"
@@ -22,6 +24,7 @@ import (
 	"github.com/anon-d/urlshortener/internal/worker"
 )
 
+// App — корневая структура приложения, содержащая HTTP-сервер, роутер и фоновые воркеры.
 type App struct {
 	server       *http.Server
 	router       *gin.Engine
@@ -29,6 +32,8 @@ type App struct {
 	deleteWorker *worker.DeleteWorker
 }
 
+// New создаёт и настраивает новое приложение:
+// инициализирует конфиг, логгер, хранилище, кэш, сервис и мидлвары.
 func New() (*App, error) {
 
 	cfg := config.NewServerConfig()
@@ -93,8 +98,17 @@ func New() (*App, error) {
 	}
 	deleteWorker.Start()
 
+	// Настройка аудита (паттерн Наблюдатель)
+	auditPublisher := audit.NewPublisher()
+	if cfg.AuditFile != "" {
+		auditPublisher.Subscribe(audit.NewFileObserver(cfg.AuditFile))
+	}
+	if cfg.AuditURL != "" {
+		auditPublisher.Subscribe(audit.NewHTTPObserver(cfg.AuditURL))
+	}
+
 	// канал для handler
-	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChannels[0])
+	urlHandler := handler.NewURLHandler(svc, cfg.AddrURL, log, deleteChannels[0], auditPublisher)
 
 	// init Gin and http
 	if cfg.Env == "release" {
@@ -146,6 +160,7 @@ type deleteStorageAdapter struct {
 	storage repository.Storage
 }
 
+// BatchMarkAsDeleted делегирует пакетное удаление в Storage.
 func (d *deleteStorageAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error {
 	return d.storage.BatchMarkAsDeleted(ctx, requests)
 }
@@ -165,6 +180,7 @@ func convertDeleteChannel(in <-chan handler.DeleteRequest) <-chan worker.DeleteR
 	return out
 }
 
+// SetupRoutes регистрирует все HTTP-маршруты приложения.
 func (a *App) SetupRoutes() {
 	maintenance := a.router.Group("/maintenance")
 	{
@@ -183,10 +199,12 @@ func (a *App) SetupRoutes() {
 
 }
 
+// Run запускает HTTP-сервер.
 func (a *App) Run() error {
 	return a.server.ListenAndServe()
 }
 
+// Shutdown корректно останавливает приложение: воркеры и HTTP-сервер.
 func (a *App) Shutdown(ctx context.Context) {
 	if a.deleteWorker != nil {
 		a.deleteWorker.Stop()

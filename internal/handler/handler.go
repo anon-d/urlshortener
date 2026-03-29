@@ -1,3 +1,6 @@
+// Package handler содержит HTTP-обработчики для сервиса сокращения URL.
+// Обработчики работают поверх фреймворка Gin и реализуют CRUD-операции
+// над короткими ссылками.
 package handler
 
 import (
@@ -6,56 +9,78 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
+	"github.com/anon-d/urlshortener/internal/audit"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
+// APIRequest — тело запроса для эндпоинта POST /api/shorten.
+// Содержит оригинальный URL, который необходимо сократить.
 type APIRequest struct {
 	URL string `json:"url" binding:"required"`
 }
+
+// APIResponse — тело ответа для эндпоинта POST /api/shorten.
+// Содержит результирующий короткий URL.
 type APIResponse struct {
 	Result string `json:"result"`
 }
 
+// ItemBatchRequest — элемент массива в теле запроса для пакетного сокращения
+// (POST /api/shorten/batch). Связывает correlation_id с оригинальным URL.
 type ItemBatchRequest struct {
 	CorrelationID string `json:"correlation_id,omitzero"`
 	OriginalURL   string `json:"original_url,omitzero"`
 }
 
+// ItemBatchResponse — элемент массива в теле ответа для пакетного сокращения.
+// Связывает correlation_id с результирующим коротким URL.
 type ItemBatchResponse struct {
 	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }
 
+// UserURLResponse — элемент ответа для эндпоинта GET /api/user/urls.
+// Содержит пару короткий URL — оригинальный URL.
 type UserURLResponse struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
 
+// URLHandler содержит зависимости и методы для обработки HTTP-запросов
+// к сервису сокращения URL.
 type URLHandler struct {
 	Service       *service.Service
 	URLAddr       string
 	logger        *zap.SugaredLogger
 	DeleteChannel chan<- DeleteRequest
+	audit         *audit.Publisher
 }
 
-// DeleteRequest представляет запрос на удаление URL
+// DeleteRequest представляет запрос на асинхронное удаление URL.
+// Передаётся через канал в DeleteWorker для пакетной обработки.
 type DeleteRequest struct {
 	UserID   string
 	ShortURL string
 }
 
-func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger, deleteChan chan<- DeleteRequest) *URLHandler {
+// NewURLHandler создаёт новый экземпляр URLHandler.
+// Принимает сервис бизнес-логики, базовый адрес для формирования коротких ссылок,
+// логгер, канал для отправки запросов на удаление и издателя аудита.
+func NewURLHandler(service *service.Service, urlAddr string, logger *zap.SugaredLogger, deleteChan chan<- DeleteRequest, auditPublisher *audit.Publisher) *URLHandler {
 	return &URLHandler{
 		Service:       service,
 		URLAddr:       urlAddr,
 		logger:        logger,
 		DeleteChannel: deleteChan,
+		audit:         auditPublisher,
 	}
 }
 
+// NotAllowed возвращает 405 Method Not Allowed.
 func (u *URLHandler) NotAllowed(c *gin.Context) {
 	c.JSON(http.StatusMethodNotAllowed, gin.H{
 		"status":  "Error",
@@ -63,6 +88,7 @@ func (u *URLHandler) NotAllowed(c *gin.Context) {
 	})
 }
 
+// HealthCheck возвращает 200 OK для проверки работоспособности сервиса.
 func (u *URLHandler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "Success",
@@ -70,6 +96,7 @@ func (u *URLHandler) HealthCheck(c *gin.Context) {
 	})
 }
 
+// NotFound возвращает 404 Not Found.
 func (u *URLHandler) NotFound(c *gin.Context) {
 	c.JSON(http.StatusNotFound, gin.H{
 		"status":  "Error",
@@ -92,13 +119,13 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 	}
 
 	userID, _ := getUserID(c)
-	id, err := u.Service.ShortenURL(c, body, userID)
+	id, err := u.Service.ShortenURL(c, string(body), userID)
 	if err != nil {
 		var conflictErr *service.ConflictError
 		if errors.As(err, &conflictErr) {
 			u.logger.Warnw("URL already exists", "error", conflictErr)
 			// URL уже существует, возвращаем 409
-			shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
+			shortURL, joinErr := url.JoinPath(u.URLAddr, id)
 			if joinErr != nil {
 				u.logger.Errorw("failed to join URL path", "error", joinErr)
 				c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -111,12 +138,13 @@ func (u *URLHandler) PostURL(c *gin.Context) {
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
-	shortURL, err := url.JoinPath(u.URLAddr, string(id))
+	shortURL, err := url.JoinPath(u.URLAddr, id)
 	if err != nil {
 		u.logger.Errorw("failed to join URL path", "error", err)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
+	u.publishAudit("shorten", userID, string(body))
 	c.String(http.StatusCreated, shortURL)
 }
 
@@ -145,6 +173,8 @@ func (u *URLHandler) GetURL(c *gin.Context) {
 		return
 	}
 
+	userID, _ := getUserID(c)
+	u.publishAudit("follow", userID, data.OriginalURL)
 	c.Redirect(http.StatusTemporaryRedirect, data.OriginalURL)
 }
 
@@ -160,9 +190,9 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 
 	userID, _ := getUserID(c)
 	targetURL := request.URL
-	id, err := u.Service.ShortenURL(c, []byte(targetURL), userID)
+	id, err := u.Service.ShortenURL(c, targetURL, userID)
 
-	shortURL, joinErr := url.JoinPath(u.URLAddr, string(id))
+	shortURL, joinErr := url.JoinPath(u.URLAddr, id)
 	if joinErr != nil {
 		u.logger.Errorw("failed to join URL path", "error", joinErr)
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -184,6 +214,7 @@ func (u *URLHandler) Shorten(c *gin.Context) {
 		return
 	}
 
+	u.publishAudit("shorten", userID, targetURL)
 	c.Writer.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(c.Writer).Encode(APIResponse{Result: shortURL})
 }
@@ -238,6 +269,8 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 	}
 }
 
+// PingDB проверяет доступность хранилища данных.
+// Возвращает 200 OK при успешном подключении, 500 Internal Server Error в противном случае.
 func (u *URLHandler) PingDB(c *gin.Context) {
 	if u.Service.Storage == nil {
 		u.logger.Warnw("storage is not initialized")
@@ -319,4 +352,17 @@ func (u *URLHandler) DeleteURLs(c *gin.Context) {
 	}
 
 	c.Status(http.StatusAccepted)
+}
+
+// publishAudit отправляет событие аудита во все зарегистрированные приёмники.
+func (u *URLHandler) publishAudit(action, userID, originalURL string) {
+	if u.audit == nil {
+		return
+	}
+	u.audit.Publish(audit.AuditEvent{
+		Timestamp: time.Now().Unix(),
+		Action:    action,
+		UserID:    userID,
+		URL:       originalURL,
+	})
 }
