@@ -124,7 +124,7 @@ func CompressionResponse() gin.HandlerFunc {
 		gzWriter := &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
 		defer func() {
 			if gzWriter.Writer != nil {
-			_ = gzWriter.Writer.Close()
+				_ = gzWriter.Writer.Close()
 				gzipWriterPool.Put(wc)
 			}
 		}()
@@ -149,7 +149,7 @@ func DecompressionRequest() gin.HandlerFunc {
 		if encodingType == "gzip" {
 			body, err := gzip.NewReader(c.Request.Body)
 			if err != nil {
-			_ = c.AbortWithError(http.StatusBadRequest, err)
+				_ = c.AbortWithError(http.StatusBadRequest, err)
 				return
 			}
 			defer func() { _ = body.Close() }()
