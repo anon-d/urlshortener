@@ -1,3 +1,4 @@
+// Package middleware содержит HTTP-мидлвары для сервиса.
 package middleware
 
 import (
@@ -78,7 +79,7 @@ type gzipResponseWriter struct {
 // Flush сбрасывает буфер gzip-писателя.
 func (g *gzipResponseWriter) Flush() {
 	if g.shouldCompress && g.Writer != nil {
-		g.Writer.Flush()
+		_ = g.Writer.Flush()
 	}
 }
 
@@ -123,7 +124,7 @@ func CompressionResponse() gin.HandlerFunc {
 		gzWriter := &gzipResponseWriter{Writer: wc, ResponseWriter: wo}
 		defer func() {
 			if gzWriter.Writer != nil {
-				gzWriter.Writer.Close()
+			_ = gzWriter.Writer.Close()
 				gzipWriterPool.Put(wc)
 			}
 		}()
@@ -148,10 +149,10 @@ func DecompressionRequest() gin.HandlerFunc {
 		if encodingType == "gzip" {
 			body, err := gzip.NewReader(c.Request.Body)
 			if err != nil {
-				c.AbortWithError(http.StatusBadRequest, err)
+			_ = c.AbortWithError(http.StatusBadRequest, err)
 				return
 			}
-			defer body.Close()
+			defer func() { _ = body.Close() }()
 			c.Request.Body = body
 		}
 		c.Next()

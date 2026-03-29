@@ -1,3 +1,4 @@
+// Package migrations содержит встроенные SQL-миграции для базы данных.
 package migrations
 
 import (
