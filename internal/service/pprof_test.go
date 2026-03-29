@@ -73,7 +73,7 @@ func TestProfileMemory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("не удалось создать файл профиля %s: %v", outPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := pprof.WriteHeapProfile(f); err != nil {
 		t.Fatalf("не удалось записать профиль: %v", err)
