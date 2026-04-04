@@ -1,3 +1,4 @@
+// Package audit реализует подсистему аудита событий сервиса.
 package audit
 
 import "sync"
