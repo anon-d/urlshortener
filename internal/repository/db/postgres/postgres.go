@@ -1,3 +1,4 @@
+// Package postgres реализует репозиторий для работы с PostgreSQL.
 package postgres
 
 import (
@@ -118,7 +119,7 @@ func (r *Repository) GetURLs(ctx context.Context) ([]repository.Data, error) {
 		}
 		return data, fmt.Errorf("failed to query URLs in GetURLs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id, shortURL, originalURL, userID string
@@ -146,7 +147,7 @@ func (r *Repository) InsertURLsBatch(ctx context.Context, data []repository.Data
 	if err != nil {
 		return fmt.Errorf("failed to get connection in InsertURLsBatch: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	err = conn.Raw(func(driverConn any) error {
 		pgConn := driverConn.(*stdlib.Conn).Conn()
@@ -158,16 +159,16 @@ func (r *Repository) InsertURLsBatch(ctx context.Context, data []repository.Data
 		}
 
 		br := pgConn.SendBatch(ctx, batch)
-		defer br.Close()
+		defer func() { _ = br.Close() }()
 
 		// Process results
 		for i := 0; i < len(data); i++ { // можно делать for idx, _ := range data {}, но так понятнее
-			_, err := br.Exec()
-			if err != nil {
-				if isUniqueViolation(err) {
+			_, execErr := br.Exec()
+			if execErr != nil {
+				if isUniqueViolation(execErr) {
 					return fmt.Errorf("failed to insert URL (id=%s) in batch: %w", data[i].ID, ErrUniqueViolation)
 				}
-				return fmt.Errorf("failed to insert URL (id=%s) in batch: %w", data[i].ID, err)
+				return fmt.Errorf("failed to insert URL (id=%s) in batch: %w", data[i].ID, execErr)
 			}
 		}
 
@@ -191,7 +192,7 @@ func (r *Repository) GetURLsByUser(ctx context.Context, userID string) ([]reposi
 		}
 		return data, fmt.Errorf("failed to query URLs by user in GetURLsByUser: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id, shortURL, originalURL, uid string

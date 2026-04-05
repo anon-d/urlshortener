@@ -103,7 +103,7 @@ func ExampleURLHandler_Shorten() {
 	fmt.Println("Status:", w.Code)
 
 	var resp handler.APIResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	fmt.Println("Result contains base URL:", strings.Contains(resp.Result, "http://localhost:8080"))
 	// Output:
 	// Status: 201
@@ -153,7 +153,7 @@ func ExampleURLHandler_BatchShorten() {
 	fmt.Println("Status:", w.Code)
 
 	var resp []handler.ItemBatchResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	fmt.Println("Items:", len(resp))
 	fmt.Println("Has correlation_id:", resp[0].CorrelationID == "1")
 	// Output:
