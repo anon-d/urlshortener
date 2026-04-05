@@ -28,3 +28,5 @@ Makefile
 # local test directory
 docker-compose.yml
 tmp
+
+staticlint

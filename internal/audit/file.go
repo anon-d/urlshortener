@@ -35,7 +35,7 @@ func (f *FileObserver) Notify(event AuditEvent) {
 		log.Printf("audit file: failed to open file %s: %v", f.path, err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.Write(data); err != nil {
 		log.Printf("audit file: failed to write event: %v", err)
