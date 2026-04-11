@@ -37,5 +37,5 @@ func (h *HTTPObserver) Notify(event AuditEvent) {
 		log.Printf("audit http: failed to send event to %s: %v", h.url, err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 }

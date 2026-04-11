@@ -1,3 +1,4 @@
+// Package worker реализует фоновую обработку запросов на удаление URL.
 package worker
 
 import (
