@@ -21,6 +21,7 @@ type ServerConfig struct {
 	SecretKey         string `env:"SECRET_KEY"`
 	AuditFile         string `env:"AUDIT_FILE"`
 	AuditURL          string `env:"AUDIT_URL"`
+	Enable_HTTPS      bool   `env:"ENABLE_HTTPS"`
 }
 
 var (
@@ -34,6 +35,7 @@ var (
 	secretKey         *string
 	auditFile         *string
 	auditURL          *string
+	enableHTTPS       *bool
 	flagsOnce         sync.Once
 )
 
@@ -45,9 +47,10 @@ func initFlags() {
 	dsnValue = flag.String("d", "", "database DSN")
 	deleteWorkerCount = flag.Int("w", 2, "number of delete worker channels")
 	deleteChannelSize = flag.Int("c", 1000, "size of each delete channel buffer")
-	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
+	secretKey = flag.String("sk", "my-super-secret-key-change-in-production", "secret key for signing cookies")
 	auditFile = flag.String("audit-file", "", "path to audit log file")
 	auditURL = flag.String("audit-url", "", "URL of remote audit server")
+	enableHTTPS = flag.Bool("s", false, "enable HTTPS")
 }
 
 // NewServerConfig создаёт конфигурацию, читая флаги и переменные окружения.
@@ -126,6 +129,16 @@ func NewServerConfig() *ServerConfig {
 		cfg.AuditURL = envAuditURL
 	} else {
 		cfg.AuditURL = *auditURL
+	}
+
+	if envEnableHTTPS, ok := os.LookupEnv("ENABLE_HTTPS"); ok {
+		if val, err := strconv.ParseBool(envEnableHTTPS); err == nil {
+			cfg.Enable_HTTPS = val
+		} else {
+			cfg.Enable_HTTPS = *enableHTTPS
+		}
+	} else {
+		cfg.Enable_HTTPS = *enableHTTPS
 	}
 
 	return cfg

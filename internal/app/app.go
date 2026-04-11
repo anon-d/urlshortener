@@ -30,6 +30,7 @@ type App struct {
 	router       *gin.Engine
 	urlHandler   *handler.URLHandler
 	deleteWorker *worker.DeleteWorker
+	enableTLS    bool
 }
 
 // New создаёт и настраивает новое приложение:
@@ -152,6 +153,7 @@ func New() (*App, error) {
 		router:       router,
 		urlHandler:   urlHandler,
 		deleteWorker: deleteWorker,
+		enableTLS:    cfg.Enable_HTTPS,
 	}, nil
 }
 
@@ -201,6 +203,9 @@ func (a *App) SetupRoutes() {
 
 // Run запускает HTTP-сервер.
 func (a *App) Run() error {
+	if a.enableTLS {
+		return a.server.ListenAndServeTLS("cert.pem", "key.pem")
+	}
 	return a.server.ListenAndServe()
 }
 
