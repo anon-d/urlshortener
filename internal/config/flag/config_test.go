@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -103,4 +105,152 @@ func TestNewServerConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadJSONConfig(t *testing.T) {
+	t.Run("valid JSON file", func(t *testing.T) {
+		content := `{"server_address":"localhost:9090","base_url":"http://example.com","file_storage_path":"/tmp/test.db","database_dsn":"postgres://test","enable_https":true}`
+		tmpFile := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg, err := loadJSONConfig(tmpFile)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.ServerAddress != "localhost:9090" {
+			t.Errorf("ServerAddress = %v, want localhost:9090", cfg.ServerAddress)
+		}
+		if cfg.BaseURL != "http://example.com" {
+			t.Errorf("BaseURL = %v, want http://example.com", cfg.BaseURL)
+		}
+		if cfg.FileStoragePath != "/tmp/test.db" {
+			t.Errorf("FileStoragePath = %v, want /tmp/test.db", cfg.FileStoragePath)
+		}
+		if cfg.DatabaseDSN != "postgres://test" {
+			t.Errorf("DatabaseDSN = %v, want postgres://test", cfg.DatabaseDSN)
+		}
+		if cfg.EnableHTTPS == nil || !*cfg.EnableHTTPS {
+			t.Errorf("EnableHTTPS = %v, want true", cfg.EnableHTTPS)
+		}
+	})
+
+	t.Run("file not found", func(t *testing.T) {
+		_, err := loadJSONConfig("/nonexistent/config.json")
+		if err == nil {
+			t.Error("expected error for missing file")
+		}
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		tmpFile := filepath.Join(t.TempDir(), "bad.json")
+		if err := os.WriteFile(tmpFile, []byte("{invalid"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := loadJSONConfig(tmpFile)
+		if err == nil {
+			t.Error("expected error for invalid JSON")
+		}
+	})
+}
+
+func TestParseIntFromEnv(t *testing.T) {
+	if v, err := parseIntFromEnv("42"); err != nil || v != 42 {
+		t.Errorf("parseIntFromEnv(\"42\") = %v, %v; want 42, nil", v, err)
+	}
+	if _, err := parseIntFromEnv("abc"); err == nil {
+		t.Error("expected error for non-numeric string")
+	}
+}
+
+func TestNewServerConfigWithJSONFile(t *testing.T) {
+	content := `{"server_address":"json-host:3000","base_url":"http://json-url","file_storage_path":"/json/path.db","database_dsn":"json-dsn","enable_https":true}`
+	tmpFile := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("JSON config used as base", func(t *testing.T) {
+		t.Setenv("CONFIG", tmpFile)
+
+		got := NewServerConfig()
+
+		if got.AddrServer != "json-host:3000" {
+			t.Errorf("AddrServer = %v, want json-host:3000", got.AddrServer)
+		}
+		if got.AddrURL != "http://json-url" {
+			t.Errorf("AddrURL = %v, want http://json-url", got.AddrURL)
+		}
+		if got.File != "/json/path.db" {
+			t.Errorf("File = %v, want /json/path.db", got.File)
+		}
+		if got.DSN != "json-dsn" {
+			t.Errorf("DSN = %v, want json-dsn", got.DSN)
+		}
+		if !got.Enable_HTTPS {
+			t.Errorf("Enable_HTTPS = %v, want true", got.Enable_HTTPS)
+		}
+	})
+
+	t.Run("env vars override JSON config", func(t *testing.T) {
+		t.Setenv("CONFIG", tmpFile)
+		t.Setenv("SERVER_ADDRESS", ":9999")
+		t.Setenv("BASE_URL", "http://env-url")
+		t.Setenv("FILE_STORAGE_PATH", "/env/path.db")
+		t.Setenv("DATABASE_DSN", "env-dsn")
+		t.Setenv("ENABLE_HTTPS", "false")
+		t.Setenv("DELETE_WORKER_COUNT", "5")
+		t.Setenv("DELETE_CHANNEL_SIZE", "500")
+		t.Setenv("SECRET_KEY", "env-secret")
+		t.Setenv("AUDIT_FILE", "/env/audit.log")
+		t.Setenv("AUDIT_URL", "http://env-audit")
+
+		got := NewServerConfig()
+
+		if got.AddrServer != ":9999" {
+			t.Errorf("AddrServer = %v, want :9999", got.AddrServer)
+		}
+		if got.AddrURL != "http://env-url" {
+			t.Errorf("AddrURL = %v, want http://env-url", got.AddrURL)
+		}
+		if got.File != "/env/path.db" {
+			t.Errorf("File = %v, want /env/path.db", got.File)
+		}
+		if got.DSN != "env-dsn" {
+			t.Errorf("DSN = %v, want env-dsn", got.DSN)
+		}
+		if got.Enable_HTTPS {
+			t.Errorf("Enable_HTTPS = %v, want false", got.Enable_HTTPS)
+		}
+		if got.DeleteWorkerCount != 5 {
+			t.Errorf("DeleteWorkerCount = %v, want 5", got.DeleteWorkerCount)
+		}
+		if got.DeleteChannelSize != 500 {
+			t.Errorf("DeleteChannelSize = %v, want 500", got.DeleteChannelSize)
+		}
+		if got.SecretKey != "env-secret" {
+			t.Errorf("SecretKey = %v, want env-secret", got.SecretKey)
+		}
+		if got.AuditFile != "/env/audit.log" {
+			t.Errorf("AuditFile = %v, want /env/audit.log", got.AuditFile)
+		}
+		if got.AuditURL != "http://env-audit" {
+			t.Errorf("AuditURL = %v, want http://env-audit", got.AuditURL)
+		}
+	})
+
+	t.Run("invalid env ints fallback to flag defaults", func(t *testing.T) {
+		t.Setenv("DELETE_WORKER_COUNT", "not-a-number")
+		t.Setenv("DELETE_CHANNEL_SIZE", "not-a-number")
+
+		got := NewServerConfig()
+
+		if got.DeleteWorkerCount != 2 {
+			t.Errorf("DeleteWorkerCount = %v, want 2 (flag default)", got.DeleteWorkerCount)
+		}
+		if got.DeleteChannelSize != 1000 {
+			t.Errorf("DeleteChannelSize = %v, want 1000 (flag default)", got.DeleteChannelSize)
+		}
+	})
 }
