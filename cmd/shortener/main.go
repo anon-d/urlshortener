@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,14 +37,14 @@ func main() {
 
 	go func() {
 		if err := application.Run(); err != nil {
-			if err.Error() != "http: Server closed" {
+			if !errors.Is(err, http.ErrServerClosed) {
 				log.Printf("Error running application: %s", err.Error())
 			}
 		}
 	}()
 
 	out := make(chan os.Signal, 1)
-	signal.Notify(out, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(out, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	<-out
 	log.Print("Shutdown process is started...")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
