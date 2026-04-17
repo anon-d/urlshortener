@@ -86,7 +86,7 @@ func (s *Service) ShortenURL(ctx context.Context, longURL string, userID string)
 			s.logger.Infow("URL already exists, returning conflict", "short_url", existingShortURL)
 			return existingShortURL, &ConflictError{ShortURL: existingShortURL}
 		} else if storageErr != nil {
-			s.logger.Warnw("Failed to insert URL into storage", "error", storageErr)
+			s.logger.Warnw("failed to insert URL into storage", "error", storageErr, "original_url", longURL)
 		}
 	}
 
@@ -158,7 +158,7 @@ func (s *Service) ShortenBatchURL(ctx context.Context, dataMap map[string]string
 
 	if s.Storage != nil {
 		if err := s.Storage.InsertBatch(ctx, dataList); err != nil {
-			s.logger.Warnw("Failed to insert batch into storage", "error", err)
+			s.logger.Warnw("failed to insert batch into storage", "error", err, "batch_size", len(dataList))
 		}
 	}
 

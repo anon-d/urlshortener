@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"flag"
 	"log"
 	"math/big"
 	"net"
@@ -15,6 +16,10 @@ import (
 )
 
 func main() {
+	certOut := flag.String("cert", "cert.pem", "path to output certificate file")
+	keyOut := flag.String("key", "key.pem", "path to output private key file")
+	flag.Parse()
+
 	// создаём шаблон сертификата
 	cert := &x509.Certificate{
 		// указываем уникальный номер сертификата
@@ -42,13 +47,13 @@ func main() {
 	// используется rand.Reader в качестве источника случайных данных
 	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to generate RSA private key: %v", err)
 	}
 
 	// создаём сертификат x.509
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, &privateKey.PublicKey, privateKey)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to create x509 certificate: %v", err)
 	}
 
 	// кодируем сертификат и ключ в формате PEM, который
@@ -59,7 +64,7 @@ func main() {
 		Bytes: certBytes,
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to PEM-encode certificate: %v", err)
 	}
 
 	var privateKeyPEM bytes.Buffer
@@ -68,15 +73,15 @@ func main() {
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to PEM-encode RSA private key: %v", err)
 	}
 
-	// Сохраняем сертификат и приватный ключ в файлы cert.pem и private.pem
-	if err = os.WriteFile("cert.pem", certPEM.Bytes(), 0644); err != nil {
-		log.Fatal(err)
+	// Сохраняем сертификат и приватный ключ в файлы
+	if err = os.WriteFile(*certOut, certPEM.Bytes(), 0644); err != nil {
+		log.Fatalf("failed to write certificate to %s: %v", *certOut, err)
 	}
 
-	if err = os.WriteFile("key.pem", privateKeyPEM.Bytes(), 0644); err != nil {
-		log.Fatal(err)
+	if err = os.WriteFile(*keyOut, privateKeyPEM.Bytes(), 0644); err != nil {
+		log.Fatalf("failed to write private key to %s: %v", *keyOut, err)
 	}
 }

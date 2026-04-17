@@ -31,6 +31,8 @@ type App struct {
 	urlHandler   *handler.URLHandler
 	deleteWorker *worker.DeleteWorker
 	enableTLS    bool
+	certFile     string
+	keyFile      string
 }
 
 // New создаёт и настраивает новое приложение:
@@ -154,6 +156,8 @@ func New() (*App, error) {
 		urlHandler:   urlHandler,
 		deleteWorker: deleteWorker,
 		enableTLS:    cfg.Enable_HTTPS,
+		certFile:     cfg.CertFile,
+		keyFile:      cfg.KeyFile,
 	}, nil
 }
 
@@ -204,7 +208,7 @@ func (a *App) SetupRoutes() {
 // Run запускает HTTP-сервер.
 func (a *App) Run() error {
 	if a.enableTLS {
-		return a.server.ListenAndServeTLS("cert.pem", "key.pem")
+		return a.server.ListenAndServeTLS(a.certFile, a.keyFile)
 	}
 	return a.server.ListenAndServe()
 }
@@ -215,6 +219,6 @@ func (a *App) Shutdown(ctx context.Context) {
 		a.deleteWorker.Stop()
 	}
 	if err := a.server.Shutdown(ctx); err != nil {
-		fmt.Println("Failed shutdown. error: ", err)
+		fmt.Printf("failed to shutdown HTTP server gracefully: %v\n", err)
 	}
 }

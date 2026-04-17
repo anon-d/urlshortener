@@ -11,7 +11,7 @@ import (
 func New() (*zap.SugaredLogger, error) {
 	logger, err := zap.NewProduction()
 	if err != nil {
-		log.Printf("Init logger: error %v", err)
+		log.Printf("failed to initialize zap production logger: %v", err)
 		return nil, err
 	}
 	sugar := logger.Sugar()

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -31,34 +30,38 @@ func main() {
 	fmt.Printf("Build version: %s\nBuild date: %s\nBuild commit: %s\n", checkLinkVar(buildVersion), checkLinkVar(buildDate), checkLinkVar(buildCommit))
 	application, err := app.New()
 	if err != nil {
-		log.Fatalf("Error initializing application.\n%s", err.Error())
+		log.Fatalf("failed to initialize application (check config flags, DB connection, file permissions): %s", err.Error())
 	}
 	application.SetupRoutes()
 
 	go func() {
 		if err := application.Run(); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
-				log.Printf("Error running application: %s", err.Error())
+				log.Printf("HTTP server exited with unexpected error: %s", err.Error())
 			}
 		}
 	}()
 
-	out := make(chan os.Signal, 1)
-	signal.Notify(out, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	<-out
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
+
+	<-ctx.Done()
+	stop() // освобождаем ресурсы сигнального механизма досрочно
+
 	log.Print("Shutdown process is started...")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	shut := make(chan struct{})
 	go func() {
-		application.Shutdown(ctx)
+		application.Shutdown(shutCtx)
 		close(shut)
 	}()
 	select {
 	case <-shut:
 		log.Print("Shutdown process is completed!")
-	case <-ctx.Done():
+	case <-shutCtx.Done():
 		log.Print("Shutdown process timeout - exiting anyway")
 	}
 }

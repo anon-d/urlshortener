@@ -273,7 +273,7 @@ func (u *URLHandler) BatchShorten(c *gin.Context) {
 // Возвращает 200 OK при успешном подключении, 500 Internal Server Error в противном случае.
 func (u *URLHandler) PingDB(c *gin.Context) {
 	if u.Service.Storage == nil {
-		u.logger.Warnw("storage is not initialized")
+		u.logger.Warnw("ping check failed: storage is not initialized")
 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}

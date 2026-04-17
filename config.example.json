@@ -1,0 +1,15 @@
+{
+  "server_address": ":8080",
+  "base_url": "http://localhost:8080",
+  "env": "dev",
+  "file_storage_path": "data.json",
+  "database_dsn": "",
+  "delete_worker_count": 2,
+  "delete_channel_size": 1000,
+  "secret_key": "my-super-secret-key-change-in-production",
+  "audit_file": "",
+  "audit_url": "",
+  "enable_https": false,
+  "cert_file": "cert.pem",
+  "key_file": "key.pem"
+}
