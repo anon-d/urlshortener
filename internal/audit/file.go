@@ -22,7 +22,7 @@ func NewFileObserver(path string) *FileObserver {
 func (f *FileObserver) Notify(event AuditEvent) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("audit file: failed to marshal event: %v", err)
+		log.Printf("audit file: failed to marshal %q event: %v", event.Action, err)
 		return
 	}
 	data = append(data, '\n')
@@ -38,6 +38,6 @@ func (f *FileObserver) Notify(event AuditEvent) {
 	defer func() { _ = file.Close() }()
 
 	if _, err := file.Write(data); err != nil {
-		log.Printf("audit file: failed to write event: %v", err)
+		log.Printf("audit file: failed to write %q event to %s: %v", event.Action, f.path, err)
 	}
 }

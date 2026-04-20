@@ -1,12 +1,15 @@
-// Package config обеспечивает загрузку конфигурации из флагов командной строки
-// и переменных окружения. Переменные окружения имеют приоритет.
+// Package config обеспечивает загрузку конфигурации с помощью Viper.
+// Источники читаются в следующем приоритете (от высшего к низшему):
+// явно переданный флаг > переменная окружения > JSON-файл > значение по умолчанию.
 package config
 
 import (
-	"flag"
 	"os"
 	"strconv"
 	"sync"
+
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 // ServerConfig — конфигурация сервера.
@@ -21,116 +24,144 @@ type ServerConfig struct {
 	SecretKey         string `env:"SECRET_KEY"`
 	AuditFile         string `env:"AUDIT_FILE"`
 	AuditURL          string `env:"AUDIT_URL"`
+	Enable_HTTPS      bool   `env:"ENABLE_HTTPS"`
+	CertFile          string `env:"CERT_FILE"`
+	KeyFile           string `env:"KEY_FILE"`
+	ConfigJSON        string `env:"CONFIG"`
+}
+
+// JSONFileConfig — структура JSON-файла конфигурации.
+type JSONFileConfig struct {
+	ServerAddress   string `json:"server_address"`
+	BaseURL         string `json:"base_url"`
+	FileStoragePath string `json:"file_storage_path"`
+	DatabaseDSN     string `json:"database_dsn"`
+	EnableHTTPS     *bool  `json:"enable_https"`
 }
 
 var (
-	addrServer        *string
-	addrURL           *string
-	envValue          *string
-	fileValue         *string
-	dsnValue          *string
-	deleteWorkerCount *int
-	deleteChannelSize *int
-	secretKey         *string
-	auditFile         *string
-	auditURL          *string
-	flagsOnce         sync.Once
+	fs        *pflag.FlagSet
+	flagsOnce sync.Once
 )
 
 func initFlags() {
-	addrServer = flag.String("a", ":8080", "address to listen on")
-	addrURL = flag.String("b", "http://localhost:8080", "base URL for short URLs")
-	envValue = flag.String("e", "dev", "environment")
-	fileValue = flag.String("f", "data.json", "file to store data")
-	dsnValue = flag.String("d", "", "database DSN")
-	deleteWorkerCount = flag.Int("w", 2, "number of delete worker channels")
-	deleteChannelSize = flag.Int("c", 1000, "size of each delete channel buffer")
-	secretKey = flag.String("s", "my-super-secret-key-change-in-production", "secret key for signing cookies")
-	auditFile = flag.String("audit-file", "", "path to audit log file")
-	auditURL = flag.String("audit-url", "", "URL of remote audit server")
+	fs = pflag.NewFlagSet("shortener", pflag.ContinueOnError)
+	fs.String("a", ":8080", "address to listen on")
+	fs.String("b", "http://localhost:8080", "base URL for short URLs")
+	fs.String("e", "dev", "environment")
+	fs.String("f", "data.json", "file to store data")
+	fs.String("d", "", "database DSN")
+	fs.Int("wc", 2, "number of delete worker channels")
+	fs.Int("cs", 1000, "size of each delete channel buffer")
+	fs.String("sk", "my-super-secret-key-change-in-production", "secret key for signing cookies")
+	fs.String("audit-file", "", "path to audit log file")
+	fs.String("audit-url", "", "URL of remote audit server")
+	fs.Bool("s", false, "enable HTTPS")
+	fs.String("cert", "cert.pem", "path to TLS certificate file")
+	fs.String("key", "key.pem", "path to TLS private key file")
+	fs.StringP("config", "c", "", "path to JSON config file")
+	// Ошибки разбора флагов (например, неизвестные флаги go test) намеренно игнорируются.
+	_ = fs.Parse(os.Args[1:])
 }
 
-// NewServerConfig создаёт конфигурацию, читая флаги и переменные окружения.
+// loadJSONConfig загружает конфигурацию из JSON-файла.
+func loadJSONConfig(path string) (*JSONFileConfig, error) {
+	v := viper.New()
+	v.SetConfigFile(path)
+	if err := v.ReadInConfig(); err != nil {
+		return nil, err
+	}
+	cfg := &JSONFileConfig{
+		ServerAddress:   v.GetString("server_address"),
+		BaseURL:         v.GetString("base_url"),
+		FileStoragePath: v.GetString("file_storage_path"),
+		DatabaseDSN:     v.GetString("database_dsn"),
+	}
+	if v.IsSet("enable_https") {
+		b := v.GetBool("enable_https")
+		cfg.EnableHTTPS = &b
+	}
+	return cfg, nil
+}
+
+// NewServerConfig создаёт конфигурацию с помощью Viper.
+// Приоритет: явно переданный флаг > переменная окружения > JSON-конфиг > значение по умолчанию.
 func NewServerConfig() *ServerConfig {
 	flagsOnce.Do(initFlags)
 
-	if !flag.Parsed() {
-		flag.Parse()
+	v := viper.New()
+
+	// Значения по умолчанию
+	v.SetDefault("server_address", ":8080")
+	v.SetDefault("base_url", "http://localhost:8080")
+	v.SetDefault("env", "dev")
+	v.SetDefault("file_storage_path", "data.json")
+	v.SetDefault("database_dsn", "")
+	v.SetDefault("delete_worker_count", 2)
+	v.SetDefault("delete_channel_size", 1000)
+	v.SetDefault("secret_key", "my-super-secret-key-change-in-production")
+	v.SetDefault("audit_file", "")
+	v.SetDefault("audit_url", "")
+	v.SetDefault("enable_https", false)
+	v.SetDefault("cert_file", "cert.pem")
+	v.SetDefault("key_file", "key.pem")
+
+	// Привязка флагов командной строки к ключам Viper
+	_ = v.BindPFlag("server_address", fs.Lookup("a"))
+	_ = v.BindPFlag("base_url", fs.Lookup("b"))
+	_ = v.BindPFlag("env", fs.Lookup("e"))
+	_ = v.BindPFlag("file_storage_path", fs.Lookup("f"))
+	_ = v.BindPFlag("database_dsn", fs.Lookup("d"))
+	_ = v.BindPFlag("delete_worker_count", fs.Lookup("wc"))
+	_ = v.BindPFlag("delete_channel_size", fs.Lookup("cs"))
+	_ = v.BindPFlag("secret_key", fs.Lookup("sk"))
+	_ = v.BindPFlag("audit_file", fs.Lookup("audit-file"))
+	_ = v.BindPFlag("audit_url", fs.Lookup("audit-url"))
+	_ = v.BindPFlag("enable_https", fs.Lookup("s"))
+	_ = v.BindPFlag("cert_file", fs.Lookup("cert"))
+	_ = v.BindPFlag("key_file", fs.Lookup("key"))
+	_ = v.BindPFlag("config", fs.Lookup("config"))
+
+	// Переменные окружения: ключ автоматически преобразуется в верхний регистр
+	// (server_address → SERVER_ADDRESS, base_url → BASE_URL и т.д.)
+	v.AutomaticEnv()
+
+	// Загрузка JSON-конфига, если путь задан через флаг --config/-c или переменную CONFIG
+	configPath := v.GetString("config")
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+		_ = v.ReadInConfig()
 	}
 
-	cfg := &ServerConfig{}
-
-	if envAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
-		cfg.AddrServer = envAddr
-	} else {
-		cfg.AddrServer = *addrServer
+	return &ServerConfig{
+		AddrServer:        v.GetString("server_address"),
+		AddrURL:           v.GetString("base_url"),
+		Env:               v.GetString("env"),
+		File:              v.GetString("file_storage_path"),
+		DSN:               v.GetString("database_dsn"),
+		DeleteWorkerCount: getIntWithFallback(v, "delete_worker_count", 2),
+		DeleteChannelSize: getIntWithFallback(v, "delete_channel_size", 1000),
+		SecretKey:         v.GetString("secret_key"),
+		AuditFile:         v.GetString("audit_file"),
+		AuditURL:          v.GetString("audit_url"),
+		Enable_HTTPS:      v.GetBool("enable_https"),
+		CertFile:          v.GetString("cert_file"),
+		KeyFile:           v.GetString("key_file"),
+		ConfigJSON:        configPath,
 	}
-
-	if envURL, ok := os.LookupEnv("BASE_URL"); ok {
-		cfg.AddrURL = envURL
-	} else {
-		cfg.AddrURL = *addrURL
-	}
-
-	if envEnv, ok := os.LookupEnv("ENV"); ok {
-		cfg.Env = envEnv
-	} else {
-		cfg.Env = *envValue
-	}
-
-	if envFile, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok {
-		cfg.File = envFile
-	} else {
-		cfg.File = *fileValue
-	}
-
-	if envDSN, ok := os.LookupEnv("DATABASE_DSN"); ok {
-		cfg.DSN = envDSN
-	} else {
-		cfg.DSN = *dsnValue
-	}
-
-	if envWorkerCount, ok := os.LookupEnv("DELETE_WORKER_COUNT"); ok {
-		if count, err := parseIntFromEnv(envWorkerCount); err == nil {
-			cfg.DeleteWorkerCount = count
-		} else {
-			cfg.DeleteWorkerCount = *deleteWorkerCount
-		}
-	} else {
-		cfg.DeleteWorkerCount = *deleteWorkerCount
-	}
-
-	if envChannelSize, ok := os.LookupEnv("DELETE_CHANNEL_SIZE"); ok {
-		if size, err := parseIntFromEnv(envChannelSize); err == nil {
-			cfg.DeleteChannelSize = size
-		} else {
-			cfg.DeleteChannelSize = *deleteChannelSize
-		}
-	} else {
-		cfg.DeleteChannelSize = *deleteChannelSize
-	}
-
-	if envSecretKey, ok := os.LookupEnv("SECRET_KEY"); ok {
-		cfg.SecretKey = envSecretKey
-	} else {
-		cfg.SecretKey = *secretKey
-	}
-
-	if envAuditFile, ok := os.LookupEnv("AUDIT_FILE"); ok {
-		cfg.AuditFile = envAuditFile
-	} else {
-		cfg.AuditFile = *auditFile
-	}
-
-	if envAuditURL, ok := os.LookupEnv("AUDIT_URL"); ok {
-		cfg.AuditURL = envAuditURL
-	} else {
-		cfg.AuditURL = *auditURL
-	}
-
-	return cfg
 }
 
+// getIntWithFallback возвращает целочисленное значение ключа из Viper.
+// Если строковое представление нельзя преобразовать в int (например, невалидная строка в env),
+// возвращает fallback вместо нуля.
+func getIntWithFallback(v *viper.Viper, key string, fallback int) int {
+	if n, err := strconv.Atoi(v.GetString(key)); err == nil {
+		return n
+	}
+	return fallback
+}
+
+// parseIntFromEnv преобразует строку переменной окружения в int.
 func parseIntFromEnv(s string) (int, error) {
 	return strconv.Atoi(s)
 }
