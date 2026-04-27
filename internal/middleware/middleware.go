@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -206,6 +207,31 @@ func signValue(value string, secretKey string) string {
 	h.Write([]byte(value))
 	signature := base64.URLEncoding.EncodeToString(h.Sum(nil))
 	return value + "." + signature
+}
+
+// TrustedSubnet проверяет, что IP-адрес клиента из заголовка X-Real-IP
+// входит в доверенную подсеть (CIDR). Если строка подсети пустая или
+// невалидна, доступ запрещён для всех запросов (403 Forbidden).
+func TrustedSubnet(subnet string) gin.HandlerFunc {
+	var ipNet *net.IPNet
+	if subnet != "" {
+		if _, parsed, err := net.ParseCIDR(subnet); err == nil {
+			ipNet = parsed
+		}
+	}
+	return func(c *gin.Context) {
+		if ipNet == nil {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		realIP := strings.TrimSpace(c.GetHeader("X-Real-IP"))
+		ip := net.ParseIP(realIP)
+		if ip == nil || !ipNet.Contains(ip) {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		c.Next()
+	}
 }
 
 // validateSignedValue проверяет подпись и возвращает оригинальное значение

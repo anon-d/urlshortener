@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/anon-d/urlshortener/internal/model"
+	"github.com/anon-d/urlshortener/internal/repository"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/anon-d/urlshortener/internal/worker"
 	"github.com/gin-gonic/gin"
@@ -118,6 +119,13 @@ func (m *mockStorage) Ping(ctx context.Context) error {
 		return errors.New("ping error")
 	}
 	return nil
+}
+
+func (m *mockStorage) GetStats(ctx context.Context) (repository.Stats, error) {
+	if m.shouldFail {
+		return repository.Stats{}, errors.New("get stats error")
+	}
+	return repository.Stats{URLs: 2, Users: 1}, nil
 }
 
 func TestPostURL_Success(t *testing.T) {
@@ -746,4 +754,8 @@ func (m *mockStorageEmpty) UpdateBatch(ctx context.Context, urls []string) error
 
 func (m *mockStorageEmpty) Ping(ctx context.Context) error {
 	return nil
+}
+
+func (m *mockStorageEmpty) GetStats(ctx context.Context) (repository.Stats, error) {
+	return repository.Stats{}, nil
 }

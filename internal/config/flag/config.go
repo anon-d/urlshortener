@@ -28,6 +28,7 @@ type ServerConfig struct {
 	CertFile          string `env:"CERT_FILE"`
 	KeyFile           string `env:"KEY_FILE"`
 	ConfigJSON        string `env:"CONFIG"`
+	TrustedSubnet     string `env:"TRUSTED_SUBNET"`
 }
 
 // JSONFileConfig — структура JSON-файла конфигурации.
@@ -37,6 +38,7 @@ type JSONFileConfig struct {
 	FileStoragePath string `json:"file_storage_path"`
 	DatabaseDSN     string `json:"database_dsn"`
 	EnableHTTPS     *bool  `json:"enable_https"`
+	TrustedSubnet   string `json:"trusted_subnet"`
 }
 
 var (
@@ -60,6 +62,7 @@ func initFlags() {
 	fs.String("cert", "cert.pem", "path to TLS certificate file")
 	fs.String("key", "key.pem", "path to TLS private key file")
 	fs.StringP("config", "c", "", "path to JSON config file")
+	fs.StringP("trusted-subnet", "t", "", "trusted subnet in CIDR notation")
 	// Ошибки разбора флагов (например, неизвестные флаги go test) намеренно игнорируются.
 	_ = fs.Parse(os.Args[1:])
 }
@@ -76,6 +79,7 @@ func loadJSONConfig(path string) (*JSONFileConfig, error) {
 		BaseURL:         v.GetString("base_url"),
 		FileStoragePath: v.GetString("file_storage_path"),
 		DatabaseDSN:     v.GetString("database_dsn"),
+		TrustedSubnet:   v.GetString("trusted_subnet"),
 	}
 	if v.IsSet("enable_https") {
 		b := v.GetBool("enable_https")
@@ -105,6 +109,7 @@ func NewServerConfig() *ServerConfig {
 	v.SetDefault("enable_https", false)
 	v.SetDefault("cert_file", "cert.pem")
 	v.SetDefault("key_file", "key.pem")
+	v.SetDefault("trusted_subnet", "")
 
 	// Привязка флагов командной строки к ключам Viper
 	_ = v.BindPFlag("server_address", fs.Lookup("a"))
@@ -121,6 +126,7 @@ func NewServerConfig() *ServerConfig {
 	_ = v.BindPFlag("cert_file", fs.Lookup("cert"))
 	_ = v.BindPFlag("key_file", fs.Lookup("key"))
 	_ = v.BindPFlag("config", fs.Lookup("config"))
+	_ = v.BindPFlag("trusted_subnet", fs.Lookup("trusted-subnet"))
 
 	// Переменные окружения: ключ автоматически преобразуется в верхний регистр
 	// (server_address → SERVER_ADDRESS, base_url → BASE_URL и т.д.)
@@ -148,6 +154,7 @@ func NewServerConfig() *ServerConfig {
 		CertFile:          v.GetString("cert_file"),
 		KeyFile:           v.GetString("key_file"),
 		ConfigJSON:        configPath,
+		TrustedSubnet:     v.GetString("trusted_subnet"),
 	}
 }
 
