@@ -26,13 +26,14 @@ import (
 
 // App — корневая структура приложения, содержащая HTTP-сервер, роутер и фоновые воркеры.
 type App struct {
-	server       *http.Server
-	router       *gin.Engine
-	urlHandler   *handler.URLHandler
-	deleteWorker *worker.DeleteWorker
-	enableTLS    bool
-	certFile     string
-	keyFile      string
+	server        *http.Server
+	router        *gin.Engine
+	urlHandler    *handler.URLHandler
+	deleteWorker  *worker.DeleteWorker
+	enableTLS     bool
+	certFile      string
+	keyFile       string
+	trustedSubnet string
 }
 
 // New создаёт и настраивает новое приложение:
@@ -151,13 +152,14 @@ func New() (*App, error) {
 	}
 
 	return &App{
-		server:       httpServer,
-		router:       router,
-		urlHandler:   urlHandler,
-		deleteWorker: deleteWorker,
-		enableTLS:    cfg.Enable_HTTPS,
-		certFile:     cfg.CertFile,
-		keyFile:      cfg.KeyFile,
+		server:        httpServer,
+		router:        router,
+		urlHandler:    urlHandler,
+		deleteWorker:  deleteWorker,
+		enableTLS:     cfg.Enable_HTTPS,
+		certFile:      cfg.CertFile,
+		keyFile:       cfg.KeyFile,
+		trustedSubnet: cfg.TrustedSubnet,
 	}, nil
 }
 
@@ -200,6 +202,13 @@ func (a *App) SetupRoutes() {
 	a.router.POST("/api/shorten/batch", a.urlHandler.BatchShorten)
 	a.router.GET("/api/user/urls", a.urlHandler.GetUserURLs)
 	a.router.DELETE("/api/user/urls", a.urlHandler.DeleteURLs)
+
+	// Внутренние эндпоинты: доступ только из доверенной подсети.
+	internalAPI := a.router.Group("/api/internal", middleware.TrustedSubnet(a.trustedSubnet))
+	{
+		internalAPI.GET("/stats", a.urlHandler.GetStats)
+	}
+
 	a.router.NoMethod(a.urlHandler.NotAllowed)
 	a.router.NoRoute(a.urlHandler.NotFound)
 

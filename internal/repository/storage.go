@@ -18,6 +18,7 @@ type Storage interface {
 	GetURLsByUser(ctx context.Context, userID string) ([]model.Data, error)
 	GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error)
 	BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error
+	GetStats(ctx context.Context) (Stats, error)
 	Ping(ctx context.Context) error
 }
 
@@ -116,6 +117,11 @@ func (d *DBAdapter) BatchMarkAsDeleted(ctx context.Context, requests []worker.De
 // Ping проверяет доступность БД.
 func (d *DBAdapter) Ping(ctx context.Context) error {
 	return d.db.Ping(ctx)
+}
+
+// GetStats возвращает количество сокращённых URL и уникальных пользователей из БД.
+func (d *DBAdapter) GetStats(ctx context.Context) (Stats, error) {
+	return d.db.GetStats(ctx)
 }
 
 // LocalAdapter адаптирует Local файловое хранилище к интерфейсу Storage
@@ -221,6 +227,26 @@ func (l *LocalAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
+// GetStats возвращает количество URL и уникальных пользователей в локальном файле.
+func (l *LocalAdapter) GetStats(ctx context.Context) (Stats, error) {
+	data, err := l.local.Load()
+	if err != nil {
+		return Stats{}, err
+	}
+	users := make(map[string]struct{})
+	urls := 0
+	for _, item := range data {
+		if item.IsDeleted {
+			continue
+		}
+		urls++
+		if item.UserID != "" {
+			users[item.UserID] = struct{}{}
+		}
+	}
+	return Stats{URLs: urls, Users: len(users)}, nil
+}
+
 // DB — интерфейс работы с реляционной базой данных.
 type DB interface {
 	InsertURL(ctx context.Context, id, shortURL, originalURL, userID string) error
@@ -230,6 +256,7 @@ type DB interface {
 	GetURLsByUser(ctx context.Context, userID string) ([]Data, error)
 	GetURLByShortURL(ctx context.Context, shortURL string) (Data, error)
 	BatchMarkAsDeleted(ctx context.Context, requests []worker.DeleteRequest) error
+	GetStats(ctx context.Context) (Stats, error)
 	Ping(ctx context.Context) error
 }
 

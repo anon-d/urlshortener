@@ -11,6 +11,7 @@ import (
 
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/model"
+	"github.com/anon-d/urlshortener/internal/repository"
 	"github.com/anon-d/urlshortener/internal/service"
 	"github.com/anon-d/urlshortener/internal/worker"
 	"github.com/gin-gonic/gin"
@@ -54,6 +55,9 @@ func (m *mockStorageEx) BatchMarkAsDeleted(ctx context.Context, r []worker.Delet
 	return nil
 }
 func (m *mockStorageEx) Ping(ctx context.Context) error { return nil }
+func (m *mockStorageEx) GetStats(ctx context.Context) (repository.Stats, error) {
+	return repository.Stats{}, nil
+}
 
 func init() {
 	gin.SetMode(gin.TestMode)

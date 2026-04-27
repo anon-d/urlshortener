@@ -11,5 +11,6 @@
   "audit_url": "",
   "enable_https": false,
   "cert_file": "cert.pem",
-  "key_file": "key.pem"
+  "key_file": "key.pem",
+  "trusted_subnet": ""
 }

@@ -50,6 +50,13 @@ type UserURLResponse struct {
 	OriginalURL string `json:"original_url"`
 }
 
+// StatsResponse — тело ответа для GET /api/internal/stats.
+// Содержит количество сокращённых URL и пользователей в сервисе.
+type StatsResponse struct {
+	URLs  int `json:"urls"`
+	Users int `json:"users"`
+}
+
 // URLHandler содержит зависимости и методы для обработки HTTP-запросов
 // к сервису сокращения URL.
 type URLHandler struct {
@@ -352,6 +359,22 @@ func (u *URLHandler) DeleteURLs(c *gin.Context) {
 	}
 
 	c.Status(http.StatusAccepted)
+}
+
+// GetStats возвращает сводную статистику сервиса:
+// количество сокращённых URL и количество пользователей.
+// Доступ ограничивается доверенной подсетью (см. middleware TrustedSubnet).
+func (u *URLHandler) GetStats(c *gin.Context) {
+	stats, err := u.Service.GetStats(c)
+	if err != nil {
+		u.logger.Errorw("failed to get stats", "error", err)
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		return
+	}
+	c.JSON(http.StatusOK, StatsResponse{
+		URLs:  stats.URLs,
+		Users: stats.Users,
+	})
 }
 
 // publishAudit отправляет событие аудита во все зарегистрированные приёмники.

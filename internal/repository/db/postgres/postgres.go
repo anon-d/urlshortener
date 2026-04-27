@@ -236,6 +236,25 @@ func (r *Repository) BatchMarkAsDeleted(ctx context.Context, requests []worker.D
 	return nil
 }
 
+// GetStats возвращает количество сокращённых URL и уникальных пользователей из БД.
+func (r *Repository) GetStats(ctx context.Context) (repository.Stats, error) {
+	query := `
+		SELECT
+			COUNT(*) FILTER (WHERE COALESCE(is_deleted, false) = false) AS urls,
+			COUNT(DISTINCT user_id) FILTER (WHERE COALESCE(is_deleted, false) = false AND user_id IS NOT NULL AND user_id <> '') AS users
+		FROM urls
+	`
+	var stats repository.Stats
+	err := r.db.QueryRowContext(ctx, query).Scan(&stats.URLs, &stats.Users)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return repository.Stats{}, nil
+		}
+		return repository.Stats{}, fmt.Errorf("failed to get stats in GetStats: %w", err)
+	}
+	return stats, nil
+}
+
 // GetURLByShortURL получает URL по короткой ссылке
 func (r *Repository) GetURLByShortURL(ctx context.Context, shortURL string) (repository.Data, error) {
 	query := "SELECT id, short_url, original_url, COALESCE(user_id, ''), COALESCE(is_deleted, false) FROM urls WHERE short_url = $1"

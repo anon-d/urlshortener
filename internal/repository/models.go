@@ -13,3 +13,9 @@ type Data struct {
 	UserID      string
 	IsDeleted   bool
 }
+
+// Stats — сводная статистика сервиса.
+type Stats struct {
+	URLs  int
+	Users int
+}
