@@ -3,15 +3,21 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/anon-d/urlshortener/internal/audit"
 	config "github.com/anon-d/urlshortener/internal/config/flag"
+	grpcserver "github.com/anon-d/urlshortener/internal/grpc"
+	pb "github.com/anon-d/urlshortener/internal/grpc/pb"
 	"github.com/anon-d/urlshortener/internal/handler"
 	"github.com/anon-d/urlshortener/internal/logger"
 	"github.com/anon-d/urlshortener/internal/middleware"
@@ -24,9 +30,11 @@ import (
 	"github.com/anon-d/urlshortener/internal/worker"
 )
 
-// App — корневая структура приложения, содержащая HTTP-сервер, роутер и фоновые воркеры.
+// App — корневая структура приложения, содержащая HTTP- и gRPC-серверы, роутер и фоновые воркеры.
 type App struct {
 	server        *http.Server
+	grpcServer    *grpc.Server
+	grpcAddress   string
 	router        *gin.Engine
 	urlHandler    *handler.URLHandler
 	deleteWorker  *worker.DeleteWorker
@@ -151,8 +159,27 @@ func New() (*App, error) {
 		Handler: router,
 	}
 
+	// gRPC-сервер
+	var grpcOpts []grpc.ServerOption
+	grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(grpcserver.AuthInterceptor(cfg.SecretKey)))
+
+	if cfg.Enable_HTTPS {
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return &App{}, fmt.Errorf("failed to load TLS credentials for gRPC: %w", err)
+		}
+		tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+	}
+
+	grpcSrv := grpc.NewServer(grpcOpts...)
+	shortenerGRPC := grpcserver.NewShortenerServer(svc, cfg.AddrURL, log)
+	pb.RegisterShortenerServiceServer(grpcSrv, shortenerGRPC)
+
 	return &App{
 		server:        httpServer,
+		grpcServer:    grpcSrv,
+		grpcAddress:   cfg.GRPCAddress,
 		router:        router,
 		urlHandler:    urlHandler,
 		deleteWorker:  deleteWorker,
@@ -222,10 +249,22 @@ func (a *App) Run() error {
 	return a.server.ListenAndServe()
 }
 
-// Shutdown корректно останавливает приложение: воркеры и HTTP-сервер.
+// RunGRPC запускает gRPC-сервер на указанном адресе.
+func (a *App) RunGRPC() error {
+	lis, err := net.Listen("tcp", a.grpcAddress)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", a.grpcAddress, err)
+	}
+	return a.grpcServer.Serve(lis)
+}
+
+// Shutdown корректно останавливает приложение: воркеры, gRPC- и HTTP-сервер.
 func (a *App) Shutdown(ctx context.Context) {
 	if a.deleteWorker != nil {
 		a.deleteWorker.Stop()
+	}
+	if a.grpcServer != nil {
+		a.grpcServer.GracefulStop()
 	}
 	if err := a.server.Shutdown(ctx); err != nil {
 		fmt.Printf("failed to shutdown HTTP server gracefully: %v\n", err)

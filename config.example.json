@@ -12,5 +12,6 @@
   "enable_https": false,
   "cert_file": "cert.pem",
   "key_file": "key.pem",
-  "trusted_subnet": ""
+  "trusted_subnet": "",
+  "grpc_address": ":3200"
 }

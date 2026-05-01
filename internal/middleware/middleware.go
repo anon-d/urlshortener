@@ -3,16 +3,13 @@ package middleware
 
 import (
 	"compress/gzip"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/anon-d/urlshortener/internal/auth"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -177,36 +174,21 @@ func AuthMiddleware(secretKey string) gin.HandlerFunc {
 		// получаем, проверяем
 		cookie, err := c.Cookie(UserIDCookieName)
 		if err == nil && cookie != "" {
-			if validUserID, valid := validateSignedValue(cookie, secretKey); valid {
+			if validUserID, valid := auth.ValidateSignedValue(cookie, secretKey); valid {
 				userID = validUserID
 			}
 		}
 
 		// если нет, то генерим
 		if userID == "" {
-			userID = generateUserID()
-			signedValue := signValue(userID, secretKey)
+			userID = auth.GenerateUserID()
+			signedValue := auth.SignValue(userID, secretKey)
 			c.SetCookie(UserIDCookieName, signedValue, 3600*24*365, "/", "", false, true)
 		}
 		// в контекст
 		c.Set(UserIDContextKey, userID)
 		c.Next()
 	}
-}
-
-// generateUserID генерирует уникальный идентификатор пользователя
-func generateUserID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)
-}
-
-// signValue подписывает значение с помощью HMAC-SHA256
-func signValue(value string, secretKey string) string {
-	h := hmac.New(sha256.New, []byte(secretKey))
-	h.Write([]byte(value))
-	signature := base64.URLEncoding.EncodeToString(h.Sum(nil))
-	return value + "." + signature
 }
 
 // TrustedSubnet проверяет, что IP-адрес клиента из заголовка X-Real-IP
@@ -236,22 +218,5 @@ func TrustedSubnet(subnet string) gin.HandlerFunc {
 
 // validateSignedValue проверяет подпись и возвращает оригинальное значение
 func validateSignedValue(signedValue string, secretKey string) (string, bool) {
-	parts := strings.Split(signedValue, ".")
-	if len(parts) != 2 {
-		return "", false
-	}
-
-	value := parts[0]
-	providedSignature := parts[1]
-
-	// Вычисляем ожидаемую подпись
-	h := hmac.New(sha256.New, []byte(secretKey))
-	h.Write([]byte(value))
-	expectedSignature := base64.URLEncoding.EncodeToString(h.Sum(nil))
-
-	if hmac.Equal([]byte(expectedSignature), []byte(providedSignature)) {
-		return value, true
-	}
-
-	return "", false
+	return auth.ValidateSignedValue(signedValue, secretKey)
 }

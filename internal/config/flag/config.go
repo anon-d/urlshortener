@@ -16,6 +16,7 @@ import (
 type ServerConfig struct {
 	AddrServer        string `env:"SERVER_ADDRESS"`
 	AddrURL           string `env:"BASE_URL"`
+	GRPCAddress       string `env:"GRPC_ADDRESS"`
 	Env               string `env:"ENV"`
 	File              string `env:"FILE_STORAGE_PATH"`
 	DSN               string `env:"DATABASE_DSN"`
@@ -63,6 +64,7 @@ func initFlags() {
 	fs.String("key", "key.pem", "path to TLS private key file")
 	fs.StringP("config", "c", "", "path to JSON config file")
 	fs.StringP("trusted-subnet", "t", "", "trusted subnet in CIDR notation")
+	fs.String("g", ":3200", "gRPC server address")
 	// Ошибки разбора флагов (например, неизвестные флаги go test) намеренно игнорируются.
 	_ = fs.Parse(os.Args[1:])
 }
@@ -110,6 +112,7 @@ func NewServerConfig() *ServerConfig {
 	v.SetDefault("cert_file", "cert.pem")
 	v.SetDefault("key_file", "key.pem")
 	v.SetDefault("trusted_subnet", "")
+	v.SetDefault("grpc_address", ":3200")
 
 	// Привязка флагов командной строки к ключам Viper
 	_ = v.BindPFlag("server_address", fs.Lookup("a"))
@@ -127,6 +130,7 @@ func NewServerConfig() *ServerConfig {
 	_ = v.BindPFlag("key_file", fs.Lookup("key"))
 	_ = v.BindPFlag("config", fs.Lookup("config"))
 	_ = v.BindPFlag("trusted_subnet", fs.Lookup("trusted-subnet"))
+	_ = v.BindPFlag("grpc_address", fs.Lookup("g"))
 
 	// Переменные окружения: ключ автоматически преобразуется в верхний регистр
 	// (server_address → SERVER_ADDRESS, base_url → BASE_URL и т.д.)
@@ -142,6 +146,7 @@ func NewServerConfig() *ServerConfig {
 	return &ServerConfig{
 		AddrServer:        v.GetString("server_address"),
 		AddrURL:           v.GetString("base_url"),
+		GRPCAddress:       v.GetString("grpc_address"),
 		Env:               v.GetString("env"),
 		File:              v.GetString("file_storage_path"),
 		DSN:               v.GetString("database_dsn"),
