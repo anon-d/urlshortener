@@ -110,6 +110,14 @@ func (s *Service) GetURLsByUser(ctx context.Context, userID string) ([]model.Dat
 	return s.Storage.GetURLsByUser(ctx, userID)
 }
 
+// GetStats возвращает количество сокращённых URL и уникальных пользователей в сервисе.
+func (s *Service) GetStats(ctx context.Context) (repository.Stats, error) {
+	if s.Storage == nil {
+		return repository.Stats{}, errors.New("storage is not available")
+	}
+	return s.Storage.GetStats(ctx)
+}
+
 // GetURLByShortURL получает полные данные URL по короткой ссылке
 func (s *Service) GetURLByShortURL(ctx context.Context, shortURL string) (model.Data, error) {
 	// Сначала проверяем кэш

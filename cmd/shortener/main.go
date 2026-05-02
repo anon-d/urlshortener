@@ -42,6 +42,12 @@ func main() {
 		}
 	}()
 
+	go func() {
+		if err := application.RunGRPC(); err != nil {
+			log.Printf("gRPC server exited with error: %s", err.Error())
+		}
+	}()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 
