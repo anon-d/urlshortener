@@ -64,7 +64,7 @@ func initFlags() {
 	fs.String("key", "key.pem", "path to TLS private key file")
 	fs.StringP("config", "c", "", "path to JSON config file")
 	fs.StringP("trusted-subnet", "t", "", "trusted subnet in CIDR notation")
-	fs.String("g", ":3200", "gRPC server address")
+	fs.String("grpc-addr", ":3200", "gRPC server address")
 	// Ошибки разбора флагов (например, неизвестные флаги go test) намеренно игнорируются.
 	_ = fs.Parse(os.Args[1:])
 }

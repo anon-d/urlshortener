@@ -7,13 +7,17 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"strings"
 )
 
 // GenerateUserID генерирует уникальный идентификатор пользователя.
+// Паникует, если криптографический генератор случайных чисел недоступен.
 func GenerateUserID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("crypto/rand is unavailable: %v", err))
+	}
 	return base64.URLEncoding.EncodeToString(b)
 }
 

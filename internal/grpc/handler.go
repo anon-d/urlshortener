@@ -48,7 +48,14 @@ func (s *ShortenerServer) ShortenURL(ctx context.Context, req *pb.URLShortenRequ
 				s.logger.Errorw("failed to join URL path", "error", joinErr)
 				return nil, status.Error(codes.Internal, "internal error")
 			}
-			return &pb.URLShortenResponse{Result: shortURL}, status.Error(codes.AlreadyExists, "url already exists")
+			// Передаём shortURL через details, т.к. gRPC игнорирует ответ при ошибке
+			st, stErr := status.New(codes.AlreadyExists, "url already exists").
+				WithDetails(&pb.URLShortenResponse{Result: shortURL})
+			if stErr != nil {
+				s.logger.Errorw("failed to attach status details", "error", stErr)
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			return nil, st.Err()
 		}
 		s.logger.Errorw("failed to shorten URL", "error", err)
 		return nil, status.Error(codes.Internal, "internal error")

@@ -192,12 +192,18 @@ func AuthMiddleware(secretKey string) gin.HandlerFunc {
 }
 
 // TrustedSubnet проверяет, что IP-адрес клиента из заголовка X-Real-IP
-// входит в доверенную подсеть (CIDR). Если строка подсети пустая или
-// невалидна, доступ запрещён для всех запросов (403 Forbidden).
-func TrustedSubnet(subnet string) gin.HandlerFunc {
+// входит в доверенную подсеть (CIDR). Если строка подсети пустая,
+// доступ запрещён для всех запросов (403 Forbidden).
+// Если строка подсети невалидна, логируется предупреждение.
+func TrustedSubnet(subnet string, logger ...*zap.SugaredLogger) gin.HandlerFunc {
 	var ipNet *net.IPNet
 	if subnet != "" {
-		if _, parsed, err := net.ParseCIDR(subnet); err == nil {
+		if _, parsed, err := net.ParseCIDR(subnet); err != nil {
+			if len(logger) > 0 && logger[0] != nil {
+				logger[0].Warnw("invalid trusted_subnet CIDR, all requests will be denied",
+					"subnet", subnet, "error", err)
+			}
+		} else {
 			ipNet = parsed
 		}
 	}

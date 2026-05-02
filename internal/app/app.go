@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -38,6 +39,7 @@ type App struct {
 	router        *gin.Engine
 	urlHandler    *handler.URLHandler
 	deleteWorker  *worker.DeleteWorker
+	logger        *zap.SugaredLogger
 	enableTLS     bool
 	certFile      string
 	keyFile       string
@@ -183,6 +185,7 @@ func New() (*App, error) {
 		router:        router,
 		urlHandler:    urlHandler,
 		deleteWorker:  deleteWorker,
+		logger:        log,
 		enableTLS:     cfg.Enable_HTTPS,
 		certFile:      cfg.CertFile,
 		keyFile:       cfg.KeyFile,
@@ -231,7 +234,7 @@ func (a *App) SetupRoutes() {
 	a.router.DELETE("/api/user/urls", a.urlHandler.DeleteURLs)
 
 	// Внутренние эндпоинты: доступ только из доверенной подсети.
-	internalAPI := a.router.Group("/api/internal", middleware.TrustedSubnet(a.trustedSubnet))
+	internalAPI := a.router.Group("/api/internal", middleware.TrustedSubnet(a.trustedSubnet, a.logger))
 	{
 		internalAPI.GET("/stats", a.urlHandler.GetStats)
 	}
